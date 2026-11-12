@@ -1,11 +1,26 @@
 -- orignal resource: https://github.com/BocusLuke/UI/blob/main/STX
 
-local GUI = game:GetService("CoreGui"):FindFirstChild("STX_Nofitication")
+local function GetSafeGuiParent()
+    if gethui then
+        local s, res = pcall(gethui)
+        if s and res then return res end
+    end
+    local s, cg = pcall(function() return game:GetService("CoreGui") end)
+    if s and cg then
+        local s2 = pcall(function() local t = Instance.new("Folder", cg) t:Destroy() end)
+        if s2 then return cg end
+    end
+    local lp = game:GetService("Players").LocalPlayer
+    return (lp and lp:FindFirstChild("PlayerGui")) or game:GetService("CoreGui")
+end
+
+local safeParent = GetSafeGuiParent()
+local GUI = safeParent:FindFirstChild("STX_Nofitication")
 if not GUI then
     local STX_Nofitication = Instance.new("ScreenGui")
     local STX_NofiticationUIListLayout = Instance.new("UIListLayout")
     STX_Nofitication.Name = "STX_Nofitication"
-    STX_Nofitication.Parent = game.CoreGui
+    STX_Nofitication.Parent = safeParent
     STX_Nofitication.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     STX_Nofitication.ResetOnSpawn = false
     
@@ -14,12 +29,10 @@ if not GUI then
     STX_NofiticationUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
     STX_NofiticationUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
     STX_NofiticationUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-else
+    GUI = STX_Nofitication
 end
 
 local Nofitication = {}
-
-local GUI = game:GetService("CoreGui"):FindFirstChild("STX_Nofitication")
 function Nofitication:Notify(nofdebug, middledebug, all)
     local SelectedType = string.lower(tostring(middledebug.Type))
     local ambientShadow = Instance.new("ImageLabel")
