@@ -1,16 +1,20 @@
 return function(Window)
     local LatestChangelog = {
         "12/11/2026",
-        "<font color='rgb(0, 200, 255)'>+ Gemini Hub DOORS Edition initialized</font>",
-        "<font color='rgb(0, 255, 100)'>+ ProximityPrompt-verified Blue Books (Room 50)</font>",
-        "<font color='rgb(0, 255, 100)'>+ Smart Emergency Closet (Rush/Ambush only)</font>",
+        "<font color='rgb(0, 200, 255)'>+ Bist's Hub DOORS Edition initialized</font>",
+        "<font color='rgb(0, 255, 100)'>+ Full The Archives subfloor bypasses & ESP</font>",
+        "<font color='rgb(0, 255, 100)'>+ Noise TV physical topple flip in The Stairwell</font>",
+        "<font color='rgb(0, 255, 100)'>+ Smart Anti-Sit seat blacklist</font>",
         "<font color='rgb(0, 255, 100)'>+ Auto Padlock Solver & Breaker Solver</font>",
         "<font color='rgb(0, 255, 100)'>+ Next Progression Door ESP</font>",
     }
 
     local function CloneReference(Object)
-        if GeminiHub and GeminiHub.Environment and GeminiHub.Environment.cloneref then
-            return GeminiHub.Environment.cloneref(Object)
+        local env = (GeminiHub and GeminiHub.Environment) or (getgenv and getgenv()) or {}
+        if env and env.cloneref then
+            return env.cloneref(Object)
+        elseif cloneref then
+            return cloneref(Object)
         else
             return Object
         end
