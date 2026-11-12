@@ -130,6 +130,34 @@ local Entities = {
 	["SallyMoving"] = {
 		Alias = "Sally",
 		NotifyMessage = { Title = "Entity 'Sally' has spawned.", Body = "Drop an item for her." }
+	},
+	["Drones"] = {
+		Alias = "Drones",
+		NotifyMessage = { Title = "Entity 'Drones' active.", Body = "Watch out for drones in hallway!" }
+	},
+	["Alma"] = {
+		Alias = "Alma",
+		NotifyMessage = { Title = "Entity 'Alma' has spawned.", Body = "Avoid looking at her!" }
+	},
+	["Honcho"] = {
+		Alias = "Honcho",
+		NotifyMessage = { Title = "Boss 'Honcho' has appeared.", Body = "Office chase sequence active." }
+	},
+	["Bash"] = {
+		Alias = "Bash",
+		NotifyMessage = { Title = "Entity 'Bash' has spawned.", Body = "Find a hiding spot quickly!" }
+	},
+	["Scribbles"] = {
+		Alias = "Scribbles",
+		NotifyMessage = { Title = "Entity 'Scribbles' has spawned.", Body = "Find a hiding spot!" }
+	},
+	["Ransom"] = {
+		Alias = "Ransom",
+		NotifyMessage = { Title = "Entity 'Ransom' has spawned.", Body = "Stop moving immediately!" }
+	},
+	["Portrait"] = {
+		Alias = "Portrait",
+		NotifyMessage = { Title = "Entity 'Portrait' appeared.", Body = "Step back from mirror!" }
 	}
 }
 
@@ -209,7 +237,21 @@ local ItemNames = {
 	["AloeVera"]          = "Aloe Vera",
 	["Donut"]             = "Donut",
 	["Lotus"]             = "Lotus",
-	["BoxingGloves"]      = "Boxing Gloves"
+	["BoxingGloves"]      = "Boxing Gloves",
+	["PaperPlane"]        = "Paper Plane",
+	["Paper Plane"]       = "Paper Plane",
+	["PaperPlanePickup"]  = "Paper Plane",
+	["FihFlakes"]         = "Fih Flakes",
+	["FihFlakesPickup"]   = "Fih Flakes",
+	["Sugar"]             = "Sugar",
+	["Creamer"]           = "Creamer",
+	["Milk"]              = "Milk",
+	["CoffeeMachine"]     = "Coffee Machine",
+	["SecretLaptop"]      = "Secret Laptop",
+	["Terminal"]          = "Terminal",
+	["ArchivesTerminal"]  = "Terminal",
+	["ArchivesWhiteboard_Wall"] = "Whiteboard / Painting",
+	["Fih Tank"]          = "Fih Tank"
 }
 
 local CutsceneNames = {
@@ -1030,6 +1072,49 @@ Functions.FindNoiseTVs = function()
 	return valid
 end
 
+Functions.NeutralizeDrone = function(droneModel)
+	if not droneModel then return end
+	pcall(function()
+		local paperCol = droneModel:FindFirstChild("PaperCollider")
+		if paperCol and paperCol:IsA("BasePart") then
+			paperCol.CanTouch = false
+			paperCol.CanQuery = false
+		end
+		local root = droneModel:FindFirstChild("Root")
+		if root and root:IsA("BasePart") then
+			root.CanTouch = false
+		end
+		for _, desc in ipairs(droneModel:GetDescendants()) do
+			if desc:IsA("BasePart") and (desc.Name == "PaperCollider" or desc.Name:find("Damage") or desc.Name:find("Hitbox")) then
+				desc.CanTouch = false
+				desc.CanQuery = false
+			end
+		end
+	end)
+end
+
+Functions.SolveTerminal = function(terminal)
+	if not terminal then return end
+	local remote = terminal:FindFirstChild("TerminalRemote") or terminal:FindFirstChildWhichIsA("RemoteFunction", true)
+	if not remote then return end
+
+	local termType = terminal:GetAttribute("Type") or "ElevatorLock"
+	task.spawn(function()
+		pcall(function()
+			if termType == "StairwellGate" then
+				remote:InvokeServer("Submit")
+				Functions.Notify({ Title = "Terminal Solved", Body = "Stairwell Gate opened!", Style = "ACHIEVEMENT", Color = Color3.fromRGB(0, 255, 120) })
+			elseif termType == "ElevatorLock" then
+				remote:InvokeServer("Submit", 1)
+				Functions.Notify({ Title = "Terminal Solved", Body = "Elevator unlocked!", Style = "ACHIEVEMENT", Color = Color3.fromRGB(0, 255, 120) })
+			else
+				remote:InvokeServer("Submit")
+				Functions.Notify({ Title = "Terminal Solved", Body = "Terminal code submitted!", Style = "ACHIEVEMENT", Color = Color3.fromRGB(0, 255, 120) })
+			end
+		end)
+	end)
+end
+
 Functions.FindCreaks = function()
 	local valid = {}
 	for i = #Globals.TrackedCreaks, 1, -1 do
@@ -1691,6 +1776,12 @@ Groupboxes.Exploits_Bypass:AddToggle("BypassSeekingWall",    { Text = "Bypass Se
 Groupboxes.Exploits_Bypass:AddToggle("BypassSnare",          { Text = "Bypass Snare",            Default = false, Tooltip = "Prevents 'Snare' from trapping you." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassBanana",         { Text = "Bypass Banana",           Default = false, Tooltip = "Prevents 'Banana Peel' from slipping you up (sometimes doesn't work)." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassJeff",           { Text = "Bypass Jeff",             Default = false, Tooltip = "Prevents 'Jeff the Killer' from stabbing you (sometimes doesn't work)." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassDrones",         { Text = "Bypass Drones (Archives)", Default = true, Tooltip = "Blocks Drone collision, damage, and fling." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassAlma",           { Text = "Bypass Alma (Archives)",   Default = true, Tooltip = "Spoofs head pitch so Alma never sees you looking at her." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassPortrait",       { Text = "Bypass Portrait (Archives)", Default = true, Tooltip = "Prevents mirror staring triggers for Portrait." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassRansom",         { Text = "Bypass Ransom (Archives)", Default = true, Tooltip = "Prevents damage from Ransom (A-90) attacks." })
+Groupboxes.Exploits_Bypass:AddToggle("AutoSolveTerminals",   { Text = "Auto Solve Terminals",     Default = false, Tooltip = "Auto-submits Stairwell Gates and Elevator Locks." })
+Groupboxes.Exploits_Bypass:AddToggle("ArchivesItemESP",      { Text = "Archives Items ESP",       Default = true, Tooltip = "Highlights all Archives interactive items and objects." })
 
 Toggles.BypassGiggle:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
@@ -2130,7 +2221,7 @@ Groupboxes.Visuals_EntitySettings = Groupboxes.Visuals_RightTab:AddTab("Settings
 
 Groupboxes.Visuals_Entities:AddDropdown("EntityList", {
 	Text = "Entity List",
-	Values = { "Rush","Ambush","Eyes","Halt","Blitz","Lookman","Gloombat Swarm","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Monument","AR0xMBUSH","RNIUSHCG==" },
+	Values = { "Rush","Ambush","Eyes","Halt","Blitz","Lookman","Gloombat Swarm","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Monument","AR0xMBUSH","RNIUSHCG==","Drones","Alma","Honcho","Bash","Scribbles","Ransom" },
 	Multi = true, AllowNull = true
 })
 Groupboxes.Visuals_Entities:AddToggle("NotifyEntities",    { Text = "Notify Entities",    Default = false, Tooltip = "Sends a notification when an entity spawns." })
@@ -2259,7 +2350,7 @@ Groupboxes.Visuals_ESP_Toggles:AddToggle("LadderESPToggle",     { Text = "Ladder
 Groupboxes.Visuals_ESP_Toggles:AddDivider()
 Groupboxes.Visuals_ESP_Toggles:AddDropdown("EntityESPOptions",     { 
 	Text = "Entity List",
-	Values = { "Rush","Ambush","Eyes","Dupe","Figure","Blitz","Lookman","Snare","Giggle","Gloombat Eggs","Grumble","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Mandrake Hole","Monument","Bramble","AR0xMBUSH","RNIUSHCG==" },
+	Values = { "Rush","Ambush","Eyes","Dupe","Figure","Blitz","Lookman","Snare","Giggle","Gloombat Eggs","Grumble","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Mandrake Hole","Monument","Bramble","AR0xMBUSH","RNIUSHCG==","Drones","Alma","Honcho","Bash","Scribbles","Ransom","Teller" },
 	Multi = true,
 	AllowNull = true
 })
@@ -2510,7 +2601,13 @@ elseif Floor == "Stairwell" then
 	Tabs.Floors:UpdateWarningBox({
 		Visible = true,
 		Title = "🪜 The Stairwell Active",
-		Text = "The Stairwell detected! Noise void anti-spawn & Creak bypass are fully active.",
+		Text = "The Stairwell detected! Noise TV flip & Creak bypass are fully active.",
+	})
+elseif Floor == "Archives" then
+	Tabs.Floors:UpdateWarningBox({
+		Visible = true,
+		Title = "📁 The Archives Active",
+		Text = "The Archives detected! Anti-Drones, Anti-Alma, Terminal Auto-Solve & Item ESP are active.",
 	})
 else
 	Tabs.Floors:UpdateWarningBox({
@@ -2794,6 +2891,75 @@ Groupboxes.Floors_Stairwell:AddButton({
 				Time = 3
 			})
 		end
+	end
+})
+
+Groupboxes.Floors_Archives = Tabs.Floors:AddRightGroupbox("📁 The Archives Sub-floor")
+Groupboxes.Floors_Archives:AddToggle("BypassDrones", {
+	Text = "Anti-Drones (No Hit / Fling)",
+	Default = true,
+	Tooltip = "Blocks WalkedInto & ShoulderChecked damage, clears knockback flings and movement stuns from office Drones."
+})
+Groupboxes.Floors_Archives:AddToggle("BypassAlma", {
+	Text = "Anti-Alma (Look Away Bypass)",
+	Default = true,
+	Tooltip = "Spoofs head pitch so Alma never registers you looking at her, preventing minigames and damage."
+})
+Groupboxes.Floors_Archives:AddToggle("BypassPortrait", {
+	Text = "Anti-Portrait (Mirror Haunt)",
+	Default = true,
+	Tooltip = "Prevents mirror reflections from triggering the Portrait haunt."
+})
+Groupboxes.Floors_Archives:AddToggle("BypassRansom", {
+	Text = "Bypass Ransom (A-90)",
+	Default = true,
+	Tooltip = "Prevents taking damage when Ransom attacks in The Archives."
+})
+Groupboxes.Floors_Archives:AddToggle("AutoSolveTerminals", {
+	Text = "Auto-Solve Terminals / Gates",
+	Default = false,
+	Tooltip = "Automatically solves Stairwell Gates and Elevator Lock terminals on interaction or approach."
+})
+Groupboxes.Floors_Archives:AddToggle("ArchivesItemESP", {
+	Text = "Archives Items & Objects ESP",
+	Default = true,
+	Tooltip = "ESP for Terminals, Paper Planes, Fih Flakes/Tank, Secret Laptop, Coffee and Whiteboards."
+})
+Groupboxes.Floors_Archives:AddDivider()
+Groupboxes.Floors_Archives:AddButton({
+	Text = "⚡ Solve Nearest Terminal",
+	Tooltip = "Instantly sends solve/submit command to the nearest Archives Terminal.",
+	Func = function()
+		local solved = false
+		for _, room in pairs(CurrentRooms:GetChildren()) do
+			for _, desc in pairs(room:GetDescendants()) do
+				if desc:IsA("Model") and (desc.Name == "ArchivesTerminal" or desc:FindFirstChild("TerminalRemote")) then
+					Functions.SolveTerminal(desc)
+					solved = true
+					break
+				end
+			end
+			if solved then break end
+		end
+		if not solved then
+			Functions.Notify({ Title = "Archives Terminal", Body = "No terminal found in loaded rooms." })
+		end
+	end
+})
+Groupboxes.Floors_Archives:AddButton({
+	Text = "✈️ Collect Paper Planes & Flakes",
+	Tooltip = "Interacts with all Paper Planes and Fih Flakes in nearby rooms.",
+	Func = function()
+		local count = 0
+		for _, room in pairs(CurrentRooms:GetChildren()) do
+			for _, desc in pairs(room:GetDescendants()) do
+				if desc:IsA("ProximityPrompt") and (desc.ObjectText == "Paper Plane" or desc.ObjectText == "FihFlakes") then
+					Functions.ForceFirePrompt(desc)
+					count = count + 1
+				end
+			end
+		end
+		Functions.Notify({ Title = "Archives Loot", Body = "Collected " .. count .. " items." })
 	end
 })
 
@@ -3402,8 +3568,24 @@ if Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallme
 				return
 			end
 
+			-- Archives Drones hit/damage blocking
+			if (Self.Name == "WalkedInto" or Self.Name == "ShoulderChecked") and Method == "FireServer" then
+				if not Toggles.BypassDrones or Toggles.BypassDrones.Value then
+					return
+				end
+			end
+
+			-- Archives Ransom (A-90) damage blocking
+			if (Self.Name == "A90" or Self.Name == "Ransom") and Method == "FireServer" then
+				if not Toggles.BypassRansom or Toggles.BypassRansom.Value then
+					return
+				end
+			end
+
 			if Self.Name == "MotorReplication" and Method == "FireServer" then
-				local DoBypass = (Toggles.BypassEyes.Value and Globals.IsEyes) or (Toggles.BypassLookman.Value and Globals.IsLookman)
+				local DoBypass = (Toggles.BypassEyes and Toggles.BypassEyes.Value and Globals.IsEyes)
+					or (Toggles.BypassLookman and Toggles.BypassLookman.Value and Globals.IsLookman)
+					or (Toggles.BypassAlma and Toggles.BypassAlma.Value and Globals.IsAlma)
 				if DoBypass then
 					if Floor == "Fools" or Floor == "OldHotel" then
 						Args[1] = 0 Args[2] = (Globals.SpoofOffset == 200 and 65 or -65) Args[3] = 0 Args[4] = false
@@ -3844,6 +4026,7 @@ Functions.HandleCharacter = function(NewCharacter)
 
 		Globals.IsEyes    = Services.Workspace:FindFirstChild("Eyes") ~= nil or Services.Workspace:FindFirstChild("Lookman") ~= nil
 		Globals.IsLookman = Services.Workspace:FindFirstChild("BackdoorLookman") ~= nil
+		Globals.IsAlma    = (Services.Workspace:FindFirstChild("Alma") ~= nil) or (Services.ReplicatedStorage:FindFirstChild("GameData") and Services.ReplicatedStorage.GameData:FindFirstChild("ArchivesClockObservation") and Services.ReplicatedStorage.GameData.ArchivesClockObservation.Value == true)
 
 		if Toggles.GroundskeeperRadar and Toggles.GroundskeeperRadar.Value and Functions.GetNearestGroundskeeper then
 			local Gs = Functions.GetNearestGroundskeeper()
@@ -4023,12 +4206,27 @@ Functions.HandleCharacter = function(NewCharacter)
 			Globals.FlyBody.Parent = nil
 		end
 
-		local DoEyesBypass = (Toggles.BypassEyes and Toggles.BypassEyes.Value and Globals.IsEyes) or (Toggles.BypassLookman and Toggles.BypassLookman.Value and Globals.IsLookman)
+		local DoEyesBypass = (Toggles.BypassEyes and Toggles.BypassEyes.Value and Globals.IsEyes)
+			or (Toggles.BypassLookman and Toggles.BypassLookman.Value and Globals.IsLookman)
+			or (Toggles.BypassAlma and Toggles.BypassAlma.Value and Globals.IsAlma)
 		if DoEyesBypass then
 			if Floor == "Fools" or Floor == "OldHotel" then
 				RemotesFolder.MotorReplication:FireServer(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
 			else
 				RemotesFolder.MotorReplication:FireServer(-650)
+			end
+		end
+
+		if (not Toggles.BypassDrones or Toggles.BypassDrones.Value) and Character then
+			local kb = RootPart:FindFirstChild("KnockbackVelo")
+			if kb then
+				kb:Destroy()
+			end
+			if Character:GetAttribute("RestrictMovement") then
+				Character:SetAttribute("RestrictMovement", nil)
+			end
+			if Character:GetAttribute("Animating") then
+				Character:SetAttribute("Animating", nil)
 			end
 		end
 
@@ -4947,6 +5145,68 @@ Functions.HandleObject = function(Object)
 				Functions.NeutralizeCrusher(Object)
 			end
 		end
+	elseif Name == "ArchivesTerminal" or Object:FindFirstChild("TerminalRemote") then
+		if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+			local termType = Object:GetAttribute("Type") or "Terminal"
+			Functions.AddESP({ Object = Object, Text = "Terminal [" .. termType .. "]", Color = Color3.fromRGB(0, 255, 200) }, true)
+		end
+		if Toggles.AutoSolveTerminals and Toggles.AutoSolveTerminals.Value then
+			Functions.SolveTerminal(Object)
+		end
+		table.insert(Objects.Interactables, Object)
+	elseif Name == "ArchivesCeilingMonitor" or Object:FindFirstChild("TellerGui") then
+		if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+			Functions.AddESP({ Object = Object, Text = "Teller Monitor", Color = Color3.fromRGB(255, 215, 0) }, true)
+		end
+		table.insert(Objects.Interactables, Object)
+	elseif Name == "SecretLaptop" then
+		if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+			Functions.AddESP({ Object = Object, Text = "Secret Laptop", Color = Color3.fromRGB(0, 180, 255) }, true)
+		end
+		table.insert(Objects.Interactables, Object)
+	elseif Name == "ArchivesWhiteboard_Wall" then
+		if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+			Functions.AddESP({ Object = Object, Text = "Whiteboard / Painting", Color = Color3.fromRGB(200, 200, 255) }, true)
+		end
+		table.insert(Objects.Interactables, Object)
+	elseif Name == "ArchivesCoffeeMachine" then
+		if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+			Functions.AddESP({ Object = Object, Text = "Coffee Machine", Color = Color3.fromRGB(180, 120, 70) }, true)
+		end
+		table.insert(Objects.Interactables, Object)
+	elseif Name == "Drones" or (Object:IsA("Model") and Object.Name:find("Drone")) then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Drones"]) then
+			Functions.AddESP({ Object = Object, Text = "Drone", Color = Color3.fromRGB(0, 220, 255) }, true)
+		end
+		if not Toggles.BypassDrones or Toggles.BypassDrones.Value then
+			Functions.NeutralizeDrone(Object)
+		end
+		table.insert(Objects.Entities, Object)
+	elseif Name == "Alma" then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Alma"]) then
+			Functions.AddESP({ Object = Object, Text = "Alma [DON'T LOOK!]", Color = Color3.fromRGB(255, 60, 60) }, true)
+		end
+		table.insert(Objects.Entities, Object)
+	elseif Name == "Honcho" or Name:find("Honcho") then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Honcho"]) then
+			Functions.AddESP({ Object = Object, Text = "Honcho [Boss]", Color = Color3.fromRGB(255, 40, 40) }, true)
+		end
+		table.insert(Objects.Entities, Object)
+	elseif Name == "Bash" then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Bash"]) then
+			Functions.AddESP({ Object = Object, Text = "Bash", Color = Color3.fromRGB(255, 50, 50) }, true)
+		end
+		table.insert(Objects.Entities, Object)
+	elseif Name == "Scribbles" then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Scribbles"]) then
+			Functions.AddESP({ Object = Object, Text = "Scribbles", Color = Color3.fromRGB(150, 255, 150) }, true)
+		end
+		table.insert(Objects.Entities, Object)
+	elseif Name == "Ransom" then
+		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Ransom"]) then
+			Functions.AddESP({ Object = Object, Text = "Ransom [FREEZE!]", Color = Color3.fromRGB(255, 100, 0) }, true)
+		end
+		table.insert(Objects.Entities, Object)
 	end
 end
 
@@ -5056,6 +5316,94 @@ task.spawn(function()
 	end)
 end)
 
+-- Archives Event-driven Drones, Alma, Terminals & Items Interceptor
+task.spawn(function()
+	local function handleDrone(drone)
+		if not drone or not drone.Parent then return end
+		Functions.NeutralizeDrone(drone)
+		if Toggles.EntityESPToggle and Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Drones"]) then
+			Functions.AddESP({ Object = drone, Text = "Drone", Color = Color3.fromRGB(0, 220, 255) }, true)
+		end
+	end
+
+	-- Sweep existing Drones in workspace
+	for _, child in ipairs(Services.Workspace:GetChildren()) do
+		if child.Name == "Drones" or child.Name:find("Drone") then
+			handleDrone(child)
+		end
+	end
+
+	Services.Workspace.ChildAdded:Connect(function(child)
+		if child.Name == "Drones" or child.Name:find("Drone") then
+			handleDrone(child)
+		elseif child.Name == "Alma" then
+			if Toggles.EntityESPToggle and Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Alma"]) then
+				Functions.AddESP({ Object = child, Text = "Alma [DON'T LOOK!]", Color = Color3.fromRGB(255, 60, 60) }, true)
+			end
+		end
+	end)
+
+	CurrentRooms.DescendantAdded:Connect(function(desc)
+		local dName = desc.Name
+		if dName == "ArchivesTerminal" or desc:FindFirstChild("TerminalRemote") then
+			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+				local termType = desc:GetAttribute("Type") or "Terminal"
+				Functions.AddESP({ Object = desc, Text = "Terminal [" .. termType .. "]", Color = Color3.fromRGB(0, 255, 200) }, true)
+			end
+			if Toggles.AutoSolveTerminals and Toggles.AutoSolveTerminals.Value then
+				Functions.SolveTerminal(desc)
+			end
+		elseif dName == "ArchivesCeilingMonitor" or desc:FindFirstChild("TellerGui") then
+			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+				Functions.AddESP({ Object = desc, Text = "Teller Monitor", Color = Color3.fromRGB(255, 215, 0) }, true)
+			end
+		elseif dName == "SecretLaptop" then
+			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+				Functions.AddESP({ Object = desc, Text = "Secret Laptop", Color = Color3.fromRGB(0, 180, 255) }, true)
+			end
+		elseif dName == "ArchivesWhiteboard_Wall" then
+			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+				Functions.AddESP({ Object = desc, Text = "Whiteboard / Painting", Color = Color3.fromRGB(200, 200, 255) }, true)
+			end
+		elseif dName == "ArchivesCoffeeMachine" then
+			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+				Functions.AddESP({ Object = desc, Text = "Coffee Machine", Color = Color3.fromRGB(180, 120, 70) }, true)
+			end
+		end
+	end)
+
+	-- Initial sweep of loaded rooms for Archives items
+	task.defer(function()
+		for _, room in pairs(CurrentRooms:GetChildren()) do
+			for _, desc in pairs(room:GetDescendants()) do
+				local dName = desc.Name
+				if dName == "ArchivesTerminal" or desc:FindFirstChild("TerminalRemote") then
+					if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+						local termType = desc:GetAttribute("Type") or "Terminal"
+						Functions.AddESP({ Object = desc, Text = "Terminal [" .. termType .. "]", Color = Color3.fromRGB(0, 255, 200) }, true)
+					end
+				elseif dName == "ArchivesCeilingMonitor" or desc:FindFirstChild("TellerGui") then
+					if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+						Functions.AddESP({ Object = desc, Text = "Teller Monitor", Color = Color3.fromRGB(255, 215, 0) }, true)
+					end
+				elseif dName == "SecretLaptop" then
+					if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+						Functions.AddESP({ Object = desc, Text = "Secret Laptop", Color = Color3.fromRGB(0, 180, 255) }, true)
+					end
+				elseif dName == "ArchivesWhiteboard_Wall" then
+					if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+						Functions.AddESP({ Object = desc, Text = "Whiteboard / Painting", Color = Color3.fromRGB(200, 200, 255) }, true)
+					end
+				elseif dName == "ArchivesCoffeeMachine" then
+					if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
+						Functions.AddESP({ Object = desc, Text = "Coffee Machine", Color = Color3.fromRGB(180, 120, 70) }, true)
+					end
+				end
+			end
+		end
+	end)
+end)
+
 Connections.PromptAnimationFixer1 = Services.ProximityPromptService.PromptButtonHoldBegan:Connect(function(Object)
 	if not Object:GetAttribute("FakePrompt") then return end
 	local ToolNames = { "Lockpick","Shears","SkeletonKey","Key","GeneratorFuse","KeyElectrical","KeyBackdoor","KeyIron", "Multitool" }
@@ -5111,7 +5459,11 @@ local AllowedInstances = {
 	RiftSpawn=true, ElevatorBreaker=true, RunnerNodes=true, PathLights=true, DuckBoard=true,
 	Padlock=true, EyestalkEndCutscene=true, MinecartRig=true, SeekMovingNewClone=true,
 	Noise=true, Creak=true, TV=true, Television=true, NoiseTV=true, Hijack=true, SpawnCreak=true, TV_Stand=true,
-	StairwellCrusher=true, StairwellCrusherContainer1=true, Crusher=true
+	StairwellCrusher=true, StairwellCrusherContainer1=true, Crusher=true,
+	ArchivesTerminal=true, Terminal=true, PaperPlane=true, PaperPlanePickup=true,
+	FihFlakes=true, FihTank=true, SecretLaptop=true, ArchivesWhiteboard_Wall=true,
+	ArchivesCoffeeMachine=true, Drones=true, Alma=true, Bash=true, Scribbles=true,
+	Ransom=true, Honcho=true, ArchivesCeilingMonitor=true
 }
 
 Functions.QueueObject = function(Object)
@@ -5378,6 +5730,15 @@ Functions.TriggerPrompt = function(Prompt)
 	if Prompt.Parent:GetAttribute("JeffShop") and Options.AutoInteractIgnoreList.Value["Jeff Items"] then return end
 	if Prompt:GetAttribute("AutoInteractIgnore") then return end
 	if Prompt.Name == "PushPrompt" and Options.AutoInteractIgnoreList.Value["Minecarts"] then return end
+	if Prompt.Name == "CartPrompt" and Prompt.ObjectText == "Wardrobe" then return end
+
+	-- Auto Solve Archives Terminals on trigger
+	if (Prompt.Name == "ActivateEventPrompt" or Prompt.Name == "InteractPrompt") and (Prompt.Parent:FindFirstChild("TerminalRemote") or (Prompt.Parent.Parent and Prompt.Parent.Parent:FindFirstChild("TerminalRemote"))) then
+		local term = Prompt.Parent:FindFirstChild("TerminalRemote") and Prompt.Parent or (Prompt.Parent.Parent:FindFirstChild("TerminalRemote") and Prompt.Parent.Parent)
+		if Toggles.AutoSolveTerminals and Toggles.AutoSolveTerminals.Value and term then
+			Functions.SolveTerminal(term)
+		end
+	end
 	if (Prompt.Parent.Name == "GoldPile" or Prompt.Parent.Name == "StardustPickup") and Options.AutoInteractIgnoreList.Value["Currency"] then return end
 
 	if Prompt.Parent.Name == "Bandage" then
