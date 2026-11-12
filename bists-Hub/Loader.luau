@@ -1,5 +1,10 @@
 if getgenv and (getgenv().BistsHub or getgenv().GeminiHub) then
-    return 
+    local old = getgenv().BistsHub or getgenv().GeminiHub
+    if old and old.Interface and old.Interface.Library then
+        pcall(function() old.Interface.Library:Unload() end)
+    end
+    getgenv().BistsHub = nil
+    getgenv().GeminiHub = nil
 end
 
 local BistsHub = {
@@ -50,7 +55,11 @@ local function LoadModule(relPath)
     }
 
     for _, BaseUrl in ipairs(Repos) do
-        local s, remoteContent = pcall(function() return game:HttpGet(BaseUrl .. relPath) end)
+        local url = BaseUrl .. relPath
+        local s, remoteContent = pcall(function() return game:HttpGet(url .. "?t=" .. tick()) end)
+        if not s or not remoteContent or #remoteContent == 0 or remoteContent:find("404: Not Found") then
+            s, remoteContent = pcall(function() return game:HttpGet(url) end)
+        end
         if s and remoteContent and #remoteContent > 0 and not remoteContent:find("404: Not Found") then
             if remoteContent:sub(1, 3) == "\239\187\191" then
                 remoteContent = remoteContent:sub(4)
