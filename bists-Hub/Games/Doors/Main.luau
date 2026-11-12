@@ -9,8 +9,11 @@ local Toggles = Library.Toggles
 local Options = Library.Options
 
 local function CloneReference(Object)
-	if GeminiHub and GeminiHub.Environment.cloneref then
-		return GeminiHub.Environment.cloneref(Object)
+	local env = (GeminiHub and GeminiHub.Environment) or (getgenv and getgenv()) or {}
+	if env and env.cloneref then
+		return env.cloneref(Object)
+	elseif cloneref then
+		return cloneref(Object)
 	end
 	return Object
 end
@@ -2055,11 +2058,18 @@ Toggles.RemoveJamminMusic:OnChanged(function(Value)
 	end
 end)
 Toggles.RemoveInteractingSounds:OnChanged(function(Value)
-	local PS = Globals.MainUI.Initiator.Main_Game.PromptService
-	PS.Triggered.Volume   = Value and 0 or 0.04
-	PS.Holding.Volume     = Value and 0 or 0.1
-	PS.Notification.Volume = Value and 0 or 0.03
-	Globals.MainUI.Initiator.Main_Game.Reminder.Caption.Volume = Value and 0 or 0.1
+	pcall(function()
+		local PS = Globals.MainUI.Initiator.Main_Game:FindFirstChild("PromptService")
+		if PS then
+			if PS:FindFirstChild("Triggered") then PS.Triggered.Volume = Value and 0 or 0.04 end
+			if PS:FindFirstChild("Holding") then PS.Holding.Volume = Value and 0 or 0.1 end
+			if PS:FindFirstChild("Notification") then PS.Notification.Volume = Value and 0 or 0.03 end
+		end
+		local rem = Globals.MainUI.Initiator.Main_Game:FindFirstChild("Reminder")
+		if rem and rem:FindFirstChild("Caption") then
+			rem.Caption.Volume = Value and 0 or 0.1
+		end
+	end)
 end)
 
 Groupboxes.Visuals_LeftTab = Tabs.Visuals:AddLeftTabbox("Camera / Effects")
@@ -3754,11 +3764,18 @@ Functions.HandleCharacter = function(NewCharacter)
 		if Vignette then Vignette.Image = "Disabled" end
 	end
 	if Toggles.RemoveInteractingSounds.Value then
-		local PS = Globals.MainUI.Initiator.Main_Game.PromptService
-		PS.Triggered.Volume = 0
-		PS.Holding.Volume   = 0
-		PS.Notification.Volume = 0
-		Globals.MainUI.Initiator.Main_Game.Reminder.Caption.Volume = 0
+		pcall(function()
+			local PS = Globals.MainUI.Initiator.Main_Game:FindFirstChild("PromptService")
+			if PS then
+				if PS:FindFirstChild("Triggered") then PS.Triggered.Volume = 0 end
+				if PS:FindFirstChild("Holding") then PS.Holding.Volume = 0 end
+				if PS:FindFirstChild("Notification") then PS.Notification.Volume = 0 end
+			end
+			local rem = Globals.MainUI.Initiator.Main_Game:FindFirstChild("Reminder")
+			if rem and rem:FindFirstChild("Caption") then
+				rem.Caption.Volume = 0
+			end
+		end)
 	end
 	if Toggles.DisableEntityJumpscares.Value then
 		local JS = Globals.MainUI.Initiator.Main_Game.RemoteListener:FindFirstChild("Jumpscares")
