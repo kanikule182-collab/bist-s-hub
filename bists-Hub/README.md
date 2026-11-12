@@ -1,10 +1,32 @@
-# Gemini Hub — DOORS
+# Bist's Hub — DOORS
 
-Gemini Hub is an advanced script hub for Roblox **DOORS** built for performance, clean visuals, and automation.
+**Bist's Hub** — продвинутый и оптимизированный скрипт-хаб для Roblox **DOORS** (включая The Stairwell и Floor 2).
 
-### Features
-* **Obsidian / Linoria UI Engine**: Sleek, fully customizable dark interface with keybinds, theme manager, and save manager.
-* **Smart ESP & Notifiers**: Full tracking for Doors, Keys, Books, Fuses, Levers, Chests, and Monsters (Rush, Ambush, Eyes, Screech, Figure, Seek, Halt, Snare, Giggle, etc.).
-* **Bypasses & Exploits**: Anti-Screech, Anti-Eyes, Anti-Snare, Anti-Halt, Jumpscare removers.
-* **Automation**: Auto Library Padlock solver (Door 50), Breaker Box solver (Door 100), Auto-interact.
-* **Movement & Visuals**: Speed boost, Noclip, Fly, Fullbright (Night Vision), FOV changer.
+---
+
+## 🚀 Запуск (Loadstring)
+
+Скопируйте и вставьте в любой поддерживаемый эксплойт (Real, Synapse, Wave, Solara и др.):
+
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/kanikule182-collab/bist-s-hub/main/bists-Hub/Loader.luau"))()
+```
+
+---
+
+## ⚡ Основные возможности
+
+* **Obsidian / Linoria UI Engine**: Удобный темный интерфейс, бинды клавиш, автосохранение настроек.
+* **The Stairwell / Sub-floors**: 
+  * **Noise TV Flip**: физическое опрокидывание и разбивание тележки с телевизором для устранения Noise.
+* **Умный ESP**:
+  * Подсветка всех подбираемых предметов (Items / Tools / Drops).
+  * ESP дверей, ключей, книг, предохранителей, рычагов, сундуков.
+  * ESP и оповещения о сущностях (Rush, Ambush, Eyes, Screech, Figure, Seek, Halt и др.).
+* **Автоматизация**:
+  * Умный авто-интеракт с фильтрацией сидений (не садится на стулья, кровати, кресла и диваны).
+  * Авто-решение библиотеки (Door 50) и щитка с предохранителями (Door 100).
+* **Защита и обходы**:
+  * Anti-Screech, Anti-Eyes, Anti-Snare, Anti-Halt.
+* **Передвижение**:
+  * Speed boost, Noclip, Fly, Fullbright.
