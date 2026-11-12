@@ -136,11 +136,34 @@ GeminiHub.Analytics = LoadModule("Components/Analytics.luau")
 local GameList = {
     [2440500124] = "Doors",
     [6839171747] = "Doors",
+    [6516141723] = "Doors",
 }
 
 local CurrentGame = GameList[game.GameId] or GameList[game.PlaceId]
-if CurrentGame == "Doors" or game.PlaceId == 6839171747 or game.GameId == 2440500124 then
-    LoadModule("Games/Doors/Loader.luau")
-else
-    LoadModule("Games/Universal/Loader.luau")
+if not CurrentGame then
+    pcall(function()
+        local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+        if info and info.Name and info.Name:lower():find("doors") then
+            CurrentGame = "Doors"
+        end
+    end)
+end
+
+local success, err = pcall(function()
+    if CurrentGame == "Doors" or game.PlaceId == 6839171747 or game.PlaceId == 6516141723 or game.GameId == 2440500124 then
+        LoadModule("Games/Doors/Loader.luau")
+    else
+        LoadModule("Games/Universal/Loader.luau")
+    end
+end)
+
+if not success then
+    warn("[Bist's Hub Error]: " .. tostring(err))
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Bist's Hub Error",
+            Text = tostring(err):sub(1, 100),
+            Duration = 10
+        })
+    end)
 end
