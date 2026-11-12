@@ -9,8 +9,11 @@ local Toggles = Library.Toggles
 local Options = Library.Options
 
 local function CloneReference(Object)
-    if GeminiHub and GeminiHub.Environment.cloneref then
-        return GeminiHub.Environment.cloneref(Object)
+    local env = (GeminiHub and GeminiHub.Environment) or (getgenv and getgenv()) or {}
+    if env and env.cloneref then
+        return env.cloneref(Object)
+    elseif cloneref then
+        return cloneref(Object)
     else
         return Object
     end
@@ -36,8 +39,8 @@ end
 task.wait(1)
 
 local Window = Library:CreateWindow({
-    Title = "Gemini Hub",
-    Footer = "Gemini Hub • DOORS Edition",
+    Title = "Bist's Hub",
+    Footer = "Bist's Hub • DOORS Edition",
     NotifySide = "Right",
     ShowCustomCursor = false,
     AutoShow = true,
