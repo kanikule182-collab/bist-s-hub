@@ -1,4 +1,4 @@
-local GeminiHub = (getgenv and getgenv().GeminiHub) or _G.GeminiHub
+local GeminiHub = (getgenv and (getgenv().BistsHub or getgenv().GeminiHub)) or _G.BistsHub or _G.GeminiHub
 
 return function(Window)
 	local function CloneReference(Object)
@@ -18,6 +18,8 @@ return function(Window)
 	local Library = GeminiHub.Interface.Library
 	local SaveManager = GeminiHub.Interface.SaveManager
 	local ThemeManager = GeminiHub.Interface.ThemeManager
+	local Options = Library.Options or (getgenv and getgenv().Options) or {}
+	local Toggles = Library.Toggles or (getgenv and getgenv().Toggles) or {}
 	
 	local SettingsTab = Window:AddTab("Settings", "settings")
 	local MenuGroup = SettingsTab:AddLeftGroupbox("Menu")
@@ -70,7 +72,7 @@ return function(Window)
 		Text = "Menu Keybind"
 	})
 
-	Library.ToggleKeybind = Options.MenuKeybind
+	Library.ToggleKeybind = MenuKeybind or (Options and Options.MenuKeybind)
 
 	Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local focused = Services.UserInputService:GetFocusedTextBox()
