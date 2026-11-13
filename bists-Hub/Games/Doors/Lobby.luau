@@ -31,7 +31,10 @@ local Connections = {}
 local Functions = {}
 
 local LocalPlayer = Services.Players.LocalPlayer
-local RemotesFolder = Services.ReplicatedStorage:WaitForChild("RemotesFolder")
+local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+    or Services.ReplicatedStorage:FindFirstChild("EntityInfo")
+    or Services.ReplicatedStorage:FindFirstChild("Bricks")
+    or Services.ReplicatedStorage:WaitForChild("RemotesFolder", 5)
 
 while not LocalPlayer.Character do
     task.wait()
