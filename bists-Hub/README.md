@@ -19,6 +19,8 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/kanikule182-collab/bi
 * **Obsidian / Linoria UI Engine**: Удобный темный интерфейс, бинды клавиш, автосохранение настроек.
 * **The Stairwell / Sub-floors**: 
   * **Noise TV Flip**: физическое опрокидывание и разбивание тележки с телевизором для устранения Noise.
+  * **Anti-Scribble**: полная защита от сущности Scribble (The Archives) — блокировка урона от летящей бумаги и мгновенная очистка порезов на экране.
+  * **Anti-Drones / Anti-Alma / Anti-Portrait**: полные обходы всех суб-этажей.
 * **Умный ESP**:
   * Подсветка всех подбираемых предметов (Items / Tools / Drops).
   * ESP дверей, ключей, книг, предохранителей, рычагов, сундуков.
