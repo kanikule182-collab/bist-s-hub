@@ -1,12 +1,11 @@
 return function(Window)
     local LatestChangelog = {
-        "12/11/2026",
-        "<font color='rgb(0, 200, 255)'>+ Bist's Hub DOORS Edition initialized</font>",
-        "<font color='rgb(0, 255, 100)'>+ Full The Archives subfloor bypasses & ESP</font>",
-        "<font color='rgb(0, 255, 100)'>+ Noise TV physical topple flip in The Stairwell</font>",
-        "<font color='rgb(0, 255, 100)'>+ Smart Anti-Sit seat blacklist</font>",
-        "<font color='rgb(0, 255, 100)'>+ Auto Padlock Solver & Breaker Solver</font>",
-        "<font color='rgb(0, 255, 100)'>+ Next Progression Door ESP</font>",
+        "<font size='22' color='rgb(50, 255, 100)'><b>ALL FIXEEED!!!!</b></font>",
+        "<font color='rgb(160, 255, 180)'>• Remote GitHub loader 100% repaired</font>",
+        "<font color='rgb(160, 255, 180)'>• Clean UI (removed cross & diamond button)</font>",
+        "<font color='rgb(160, 255, 180)'>• Toggle with [RightShift] or [Insert]</font>",
+        "<font color='rgb(160, 255, 180)'>• Full Real executor optimization</font>",
+        "<font color='rgb(160, 255, 180)'>• Safe DOORS lobby initialization</font>",
     }
 
     local function CloneReference(Object)
