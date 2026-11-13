@@ -44,7 +44,6 @@ local function LoadModule(relPath)
     end
 
     local Repos = {
-        (getgenv and getgenv().BistsHubBaseUrl),
         "https://raw.githubusercontent.com/kanikule182-collab/bist-s-hub/main/bists-Hub/",
         "https://raw.githubusercontent.com/kanikule182-collab/bist-s-hub/refs/heads/main/bists-Hub/",
         "https://raw.githubusercontent.com/kanikule182-collab/bist-s-hub/main/",
@@ -53,6 +52,10 @@ local function LoadModule(relPath)
         "https://raw.githubusercontent.com/kanikule182-collab/bists-hub/refs/heads/main/",
         "https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/",
     }
+
+    if getgenv and getgenv().BistsHubBaseUrl then
+        table.insert(Repos, 1, getgenv().BistsHubBaseUrl)
+    end
 
     for _, BaseUrl in ipairs(Repos) do
         local url = BaseUrl .. relPath
@@ -70,6 +73,14 @@ local function LoadModule(relPath)
         end
     end
 
+    warn("[Bist's Hub Fatal] Unable to load module: " .. tostring(relPath))
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Bist's Hub Error",
+            Text = "Failed to load: " .. tostring(relPath),
+            Duration = 10
+        })
+    end)
     error("[Bist's Hub] Unable to load module: " .. relPath)
 end
 
