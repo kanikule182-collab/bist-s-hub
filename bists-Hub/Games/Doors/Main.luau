@@ -1698,6 +1698,7 @@ Groupboxes.Exploits_Bypass:AddToggle("BypassDrones",         { Text = "Bypass Dr
 Groupboxes.Exploits_Bypass:AddToggle("BypassAlma",           { Text = "Bypass Alma (Archives)",   Default = true, Tooltip = "Spoofs head pitch so Alma never sees you looking at her." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassPortrait",       { Text = "Bypass Portrait (Archives)", Default = true, Tooltip = "Prevents mirror staring triggers for Portrait." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassRansom",         { Text = "Bypass Ransom (Archives)", Default = true, Tooltip = "Prevents damage from Ransom (A-90) attacks." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassScribble",       { Text = "Bypass Scribble (Archives)", Default = true, Tooltip = "Prevents damage from Scribble flying paper cuts." })
 Groupboxes.Exploits_Bypass:AddToggle("AutoSolveTerminals",   { Text = "Auto Solve Terminals",     Default = false, Tooltip = "Auto-submits Stairwell Gates and Elevator Locks." })
 Groupboxes.Exploits_Bypass:AddToggle("ArchivesItemESP",      { Text = "Archives Items ESP",       Default = true, Tooltip = "Highlights all Archives interactive items and objects." })
 
@@ -2840,6 +2841,11 @@ Groupboxes.Floors_Archives:AddToggle("BypassRansom", {
 	Default = true,
 	Tooltip = "Prevents taking damage when Ransom attacks in The Archives."
 })
+Groupboxes.Floors_Archives:AddToggle("BypassScribble", {
+	Text = "Anti-Scribble (No Paper Cuts)",
+	Default = true,
+	Tooltip = "Prevents damage from Scribble flying paper cuts (blocks IfYoureExploitingDeleteThis) and removes papercut screen overlays."
+})
 Groupboxes.Floors_Archives:AddToggle("AutoSolveTerminals", {
 	Text = "Auto-Solve Terminals / Gates",
 	Default = false,
@@ -3503,6 +3509,13 @@ if Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallme
 			-- Archives Ransom (A-90) damage blocking
 			if (Self.Name == "A90" or Self.Name == "Ransom") and Method == "FireServer" then
 				if not Toggles.BypassRansom or Toggles.BypassRansom.Value then
+					return
+				end
+			end
+
+			-- Archives Scribble (IfYoureExploitingDeleteThis & ScribbleDamage) damage blocking
+			if (Self.Name == "IfYoureExploitingDeleteThis" or Self.Name == "ScribbleDamage") and Method == "FireServer" then
+				if not Toggles.BypassScribble or Toggles.BypassScribble.Value then
 					return
 				end
 			end
@@ -5129,11 +5142,24 @@ Functions.HandleObject = function(Object)
 			Functions.AddESP({ Object = Object, Text = "Bash", Color = Color3.fromRGB(255, 50, 50) }, true)
 		end
 		table.insert(Objects.Entities, Object)
-	elseif Name == "Scribbles" then
+	elseif Name == "Scribbles" or Name == "Scribble" or Name:find("Scribble") then
 		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Scribbles"]) then
-			Functions.AddESP({ Object = Object, Text = "Scribbles", Color = Color3.fromRGB(150, 255, 150) }, true)
+			Functions.AddESP({ Object = Object, Text = "Scribble", Color = Color3.fromRGB(150, 255, 150) }, true)
 		end
 		table.insert(Objects.Entities, Object)
+	elseif Name == "ScribblesPaper" or Name:find("ScribblesPaper") then
+		if not Toggles.BypassScribble or Toggles.BypassScribble.Value then
+			for _, part in ipairs(Object:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+					part.CanTouch = false
+				end
+			end
+			if Object:IsA("BasePart") then
+				Object.CanCollide = false
+				Object.CanTouch = false
+			end
+		end
 	elseif Name == "Ransom" then
 		if Toggles.EntityESPToggle.Value and (not Options.EntityESPOptions or Options.EntityESPOptions.Value["Ransom"]) then
 			Functions.AddESP({ Object = Object, Text = "Ransom [FREEZE!]", Color = Color3.fromRGB(255, 100, 0) }, true)
@@ -5228,6 +5254,43 @@ task.spawn(function()
 					Functions.NeutralizeCrusher(desc)
 				end
 			end
+		elseif dName == "ScribblesPaper" or dName:find("ScribblesPaper") then
+			if not Toggles.BypassScribble or Toggles.BypassScribble.Value then
+				task.defer(function()
+					pcall(function()
+						if desc:IsA("BasePart") then
+							desc.CanCollide = false
+							desc.CanTouch = false
+						end
+						for _, p in ipairs(desc:GetDescendants()) do
+							if p:IsA("BasePart") then
+								p.CanCollide = false
+								p.CanTouch = false
+							end
+						end
+					end)
+				end)
+			end
+		end
+	end)
+
+	-- Auto clean PaperCut screen effect from Scribble
+	pcall(function()
+		local function hookMainUI(ui)
+			if ui.Name == "MainUI" then
+				ui.ChildAdded:Connect(function(child)
+					if child.Name == "PaperCut" and (not Toggles.BypassScribble or Toggles.BypassScribble.Value) then
+						task.defer(function()
+							pcall(function() child:Destroy() end)
+						end)
+					end
+				end)
+			end
+		end
+		local pGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
+		if pGui then
+			if pGui:FindFirstChild("MainUI") then hookMainUI(pGui.MainUI) end
+			pGui.ChildAdded:Connect(hookMainUI)
 		end
 	end)
 
