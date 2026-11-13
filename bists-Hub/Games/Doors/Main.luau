@@ -1403,20 +1403,6 @@ local Window = Library:CreateWindow({
 	CornerRadius = 2,
 })
 
--- Global Floating Button & Close Button setup
-local FloatGui = Instance.new("ScreenGui")
-FloatGui.Name = "BistsHub_FloatToggle"
-FloatGui.ResetOnSpawn = false
-FloatGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-pcall(function()
-	local gethui = gethui or function() return game:GetService("CoreGui") end
-	FloatGui.Parent = gethui()
-end)
-if not FloatGui.Parent then
-	FloatGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
 local function toggleHubMenu(forcedState)
 	local newState
 	if typeof(forcedState) == "boolean" then
@@ -1435,77 +1421,6 @@ local function toggleHubMenu(forcedState)
 		if Library.Toggle then Library:Toggle(newState) end
 	end)
 end
-
--- Close Button [✕] in top-right of MainFrame
-if Window.MainFrame then
-	local CloseBtn = Instance.new("TextButton")
-	CloseBtn.Name = "BistCloseBtn"
-	CloseBtn.Text = "✕"
-	CloseBtn.Font = Enum.Font.GothamBold
-	CloseBtn.TextSize = 13
-	CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-	CloseBtn.BackgroundTransparency = 0.15
-	CloseBtn.Size = UDim2.fromOffset(24, 24)
-	CloseBtn.AnchorPoint = Vector2.new(1, 0)
-	CloseBtn.Position = UDim2.new(1, -6, 0, 6)
-	CloseBtn.ZIndex = 99999
-	CloseBtn.Parent = Window.MainFrame
-
-	local CloseCorner = Instance.new("UICorner")
-	CloseCorner.CornerRadius = UDim.new(0, 6)
-	CloseCorner.Parent = CloseBtn
-
-	CloseBtn.MouseEnter:Connect(function()
-		CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
-		CloseBtn.BackgroundTransparency = 0
-	end)
-	CloseBtn.MouseLeave:Connect(function()
-		CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-		CloseBtn.BackgroundTransparency = 0.15
-	end)
-
-	CloseBtn.MouseButton1Click:Connect(function()
-		toggleHubMenu(false)
-	end)
-end
-
--- Floating On-Screen Toggle Pill (Click to open/close anywhere)
-local FloatBtn = Instance.new("TextButton")
-FloatBtn.Name = "FloatBtn"
-FloatBtn.Text = "💎 Bist's Hub"
-FloatBtn.Font = Enum.Font.GothamBold
-FloatBtn.TextSize = 12
-FloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-FloatBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
-FloatBtn.Size = UDim2.fromOffset(115, 32)
-FloatBtn.Position = UDim2.new(0, 16, 0.45, 0)
-FloatBtn.Active = true
-FloatBtn.Draggable = true
-FloatBtn.Parent = FloatGui
-
-local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(0, 8)
-FloatCorner.Parent = FloatBtn
-
-local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Color = Color3.fromRGB(0, 170, 255)
-FloatStroke.Thickness = 1.5
-FloatStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-FloatStroke.Parent = FloatBtn
-
-FloatBtn.MouseEnter:Connect(function()
-	FloatBtn.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
-	FloatStroke.Color = Color3.fromRGB(50, 220, 255)
-end)
-FloatBtn.MouseLeave:Connect(function()
-	FloatBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
-	FloatStroke.Color = Color3.fromRGB(0, 170, 255)
-end)
-
-FloatBtn.MouseButton1Click:Connect(function()
-	toggleHubMenu()
-end)
 
 Services.UserInputService.InputBegan:Connect(function(input, gpe)
 	local focused = Services.UserInputService:GetFocusedTextBox()
@@ -3526,7 +3441,7 @@ Groupboxes.Presets_Tips:AddLabel("• <b>Legit Helper:</b> Use to appear 100% le
 Groupboxes.Presets_Tips:AddLabel("• <b>Speedrun Pro:</b> Clears Hotel in under 12m.", true)
 Groupboxes.Presets_Tips:AddLabel("• <b>Immortal God:</b> Complete entity invulnerability.", true)
 Groupboxes.Presets_Tips:AddLabel("• <b>Toggle Menu:</b> Press [RightShift] or [Insert].", true)
-Groupboxes.Presets_Tips:AddLabel("• <b>Close Menu:</b> Click the red [✕] at top-right.", true)
+Groupboxes.Presets_Tips:AddLabel("• <b>Toggle Menu:</b> Press [RightShift] or [Insert] to open/close.", true)
 
 Toggles.KnobFarm:OnChanged(function(Value)
     if Value then
@@ -6132,7 +6047,13 @@ Library:OnUnload(function()
 		Collision.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, -0.982, 0)
 	end
 
-	pcall(function() if FloatGui then FloatGui:Destroy() end end)
+	pcall(function()
+		local gethui = gethui or function() return game:GetService("CoreGui") end
+		local h = gethui()
+		if h and h:FindFirstChild("BistsHub_FloatToggle") then
+			h.BistsHub_FloatToggle:Destroy()
+		end
+	end)
 	CollisionClone:Destroy()
 	CollisionPartClone:Destroy()
 	GeminiHub.ESPLibrary:Unload()
