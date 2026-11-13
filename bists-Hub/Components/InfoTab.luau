@@ -5,6 +5,7 @@ return function(Window)
         "<font color='rgb(160, 255, 180)'>• Clean UI (removed cross & diamond button)</font>",
         "<font color='rgb(160, 255, 180)'>• Toggle with [RightShift] or [Insert]</font>",
         "<font color='rgb(160, 255, 180)'>• Full Real executor optimization</font>",
+        "<font color='rgb(160, 255, 180)'>• Anti-Scribble bypass (No paper damage & screen clean)</font>",
         "<font color='rgb(160, 255, 180)'>• Safe DOORS lobby initialization</font>",
     }
 
