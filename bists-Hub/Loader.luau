@@ -1,10 +1,23 @@
-if getgenv and (getgenv().BistsHub or getgenv().GeminiHub) then
+if getgenv and (getgenv().BistsHub or getgenv().GeminiHub or getgenv().DoorsMainUnload) then
     local old = getgenv().BistsHub or getgenv().GeminiHub
-    if old and old.Interface and old.Interface.Library then
-        pcall(function() old.Interface.Library:Unload() end)
+    if old then
+        if old.Unload then
+            pcall(function() old:Unload() end)
+        elseif old.Interface and old.Interface.Library then
+            pcall(function() old.Interface.Library:Unload() end)
+        end
+        if old.ESPLibrary then
+            pcall(function() old.ESPLibrary:Unload() end)
+        end
+    end
+    if getgenv().DoorsMainUnload then
+        pcall(getgenv().DoorsMainUnload)
+        getgenv().DoorsMainUnload = nil
     end
     getgenv().BistsHub = nil
     getgenv().GeminiHub = nil
+    getgenv().Abysall = nil
+    task.wait(0.15)
 end
 
 local BistsHub = {
@@ -13,6 +26,36 @@ local BistsHub = {
     Version = "1.0.0",
 }
 local GeminiHub = BistsHub
+
+function BistsHub:Unload()
+    if self.Unloaded then return end
+    self.Unloaded = true
+
+    if self.DoorsUnload then
+        pcall(self.DoorsUnload)
+        self.DoorsUnload = nil
+    end
+
+    if self.Interface and self.Interface.Library then
+        pcall(function() self.Interface.Library:Unload() end)
+    end
+
+    if self.ESPLibrary then
+        pcall(function() self.ESPLibrary:Unload() end)
+    end
+
+    pcall(function()
+        local gethui = gethui or function() return game:GetService("CoreGui") end
+        local h = gethui()
+        if h then
+            for _, child in ipairs(h:GetChildren()) do
+                if child.Name:find("BistsHub") or child.Name:find("GeminiHub") or child.Name == "BistsHub_FloatToggle" then
+                    child:Destroy()
+                end
+            end
+        end
+    end)
+end
 
 if getgenv then
     getgenv().BistsHub = BistsHub
