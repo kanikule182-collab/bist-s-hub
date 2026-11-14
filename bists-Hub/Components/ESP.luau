@@ -479,13 +479,12 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 			local LineData = Library.Lines[Object]
 			local ActiveColor = Library.Rainbow and RainbowState.Color or (Library.ColorTable[Object] or Color3.fromRGB(255, 255, 255))
 
-			-- Update Highlight
-			if CachedHighlight and CachedHighlight.Parent then
-				CachedHighlight.Enabled = true
+			-- Only update highlight color dynamically if Rainbow mode is active (avoids dirtying mesh buffers every frame)
+			if Library.Rainbow and CachedHighlight and CachedHighlight.Parent then
 				CachedHighlight.FillColor = ActiveColor
-				CachedHighlight.OutlineColor = Library.MatchColors and ActiveColor or Library.OutlineColor
-				CachedHighlight.FillTransparency = Library.FillTransparency
-				CachedHighlight.OutlineTransparency = Library.OutlineTransparency
+				if Library.MatchColors then
+					CachedHighlight.OutlineColor = ActiveColor
+				end
 			end
 
 			-- Update 2D Billboard Label (properly positioned and centered)
@@ -493,14 +492,10 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 				Frame.Visible = IsVisibleOnScreen
 				if IsVisibleOnScreen then
 					Frame.Position = UDim2.new(0, ScreenPoint.X, 0, ScreenPoint.Y)
-					local Distance = math.floor((CamPos - ObjectPos).Magnitude)
-					local DistanceText = Library.ShowDistance
-						and ("\n" .. '<font size="' .. math.round(Library.TextSize * Library.DistanceSizeRatio) .. '">[' .. Distance .. ']</font>')
-						or ""
-					Label.Text = (Library.TextTable[Object] or "") .. DistanceText
-					Label.TextColor3 = ActiveColor
-					Label.TextTransparency = Library.TextTransparency
-					Label.TextStrokeTransparency = Library.TextOutlineTransparency
+					if Library.ShowDistance then
+						local Distance = math.floor((CamPos - ObjectPos).Magnitude)
+						Label.Text = (Library.TextTable[Object] or "") .. "\n" .. '<font size="' .. math.round(Library.TextSize * Library.DistanceSizeRatio) .. '">[' .. Distance .. ']</font>'
+					end
 				end
 			end
 
