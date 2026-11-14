@@ -195,6 +195,55 @@ Groupboxes.Rank:AddButton({
     end
 })
 
+Groupboxes.Farm:AddButton({
+    Text = "⚡ Моментально сломать всё (Nuke Area)",
+    Tooltip = "Instantly deals massive damage to all breakables in your zone and magnets all orbs & loot.",
+    Func = function()
+        local b = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+        if not b then return end
+        local remote = Network and Network:FindFirstChild("Breakables_PlayerDealDamage")
+        if not remote then return end
+
+        local char, root = GetCharacter()
+        local rootPos = root and root.Position or Vector3.zero
+        local count = 0
+
+        for _, item in ipairs(b:GetChildren()) do
+            if item:IsA("Model") or item:IsA("BasePart") then
+                local pos = item:GetPivot().Position
+                if (pos - rootPos).Magnitude <= 220 then
+                    local uid = item:GetAttribute("BreakableUID") or item.Name
+                    for _ = 1, 6 do
+                        remote:FireServer(uid)
+                    end
+                    count = count + 1
+                end
+            end
+        end
+
+        task.wait(0.1)
+        local things = Workspace.__THINGS
+        if things:FindFirstChild("Orbs") then
+            for _, orb in ipairs(things.Orbs:GetChildren()) do
+                pcall(function() orb:PivotTo(root.CFrame) end)
+            end
+        end
+        if things:FindFirstChild("Lootbags") then
+            for _, bag in ipairs(things.Lootbags:GetChildren()) do
+                pcall(function() bag:PivotTo(root.CFrame) end)
+            end
+        end
+
+        Library:Notify("Shattered " .. count .. " breakables & collected all loot!", 3)
+    end
+})
+
+Groupboxes.Farm:AddToggle("ContinuousNuke", {
+    Text = "Ultra Nuke Loop (Non-Stop)",
+    Default = false,
+    Tooltip = "Continuously destroys every object in the entire zone as soon as it spawns."
+})
+
 Groupboxes.Farm:AddToggle("AoEFarm", {
     Text = "AoE Breakables Multi-Farm",
     Default = true,
@@ -448,7 +497,13 @@ end)
 task.spawn(function()
     while Running do
         task.wait(0.18)
-        if Toggles.AoEFarm and Toggles.AoEFarm.Value then
+        if Toggles.ContinuousNuke and Toggles.ContinuousNuke.Value then
+            local targets = FindBreakablesByFilter("any", 35)
+            for _, target in ipairs(targets) do
+                local uid = target:GetAttribute("BreakableUID") or target.Name
+                for _ = 1, 4 do DamageBreakable(uid) end
+            end
+        elseif Toggles.AoEFarm and Toggles.AoEFarm.Value then
             local targets = FindBreakablesByFilter("any", 12)
             for _, target in ipairs(targets) do
                 local uid = target:GetAttribute("BreakableUID") or target.Name
