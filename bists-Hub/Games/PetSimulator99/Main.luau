@@ -56,6 +56,7 @@ end
 
 local function UnloadAll()
     Running = false
+    pcall(RemoveSafePlatform)
     for _, conn in ipairs(Connections) do
         pcall(function() conn:Disconnect() end)
     end
@@ -257,6 +258,140 @@ local function HatchEgg(eggName, count)
     return success and res
 end
 
+local SafePlatform = nil
+
+local function RemoveSafePlatform()
+    if SafePlatform then
+        pcall(function() SafePlatform:Destroy() end)
+        SafePlatform = nil
+    end
+end
+
+local function EnsureSafePlatform(targetCFrame)
+    if not SafePlatform or not SafePlatform.Parent then
+        SafePlatform = Instance.new("Part")
+        SafePlatform.Name = "OpenHub_SafePlatform"
+        SafePlatform.Size = Vector3.new(28, 2, 28)
+        SafePlatform.Anchored = true
+        SafePlatform.CanCollide = true
+        SafePlatform.Transparency = 0.5
+        SafePlatform.Material = Enum.Material.ForceField
+        SafePlatform.Color = Color3.fromRGB(0, 255, 170)
+        SafePlatform.Parent = Workspace
+    end
+    SafePlatform.CFrame = targetCFrame
+    return SafePlatform
+end
+
+local function IsInMinigame()
+    local inInst = false
+    local id = nil
+    pcall(function()
+        local client = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client")
+        local inst = client and client:FindFirstChild("InstancingCmds")
+        if inst then
+            local m = require(inst)
+            inInst = (m.IsInInstance and m.IsInInstance()) or false
+            id = (m.GetInstanceID and m.GetInstanceID()) or nil
+        end
+    end)
+    return inInst, id
+end
+
+local function PlayerHasBomb()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    -- 1. Check tools or children in character
+    for _, child in ipairs(char:GetChildren()) do
+        local n = child.Name:lower()
+        if n:find("pump") or n:find("bomb") or n:find("fire") or n:find("fuse") or n:find("tnt") or n:find("tag") then
+            return true
+        end
+    end
+
+    -- 2. Check attributes
+    for k, v in pairs(LocalPlayer:GetAttributes()) do
+        local n = tostring(k):lower()
+        if (n:find("bomb") or n:find("pump") or n:find("hold") or n:find("it")) and v == true then
+            return true
+        end
+    end
+    for k, v in pairs(char:GetAttributes()) do
+        local n = tostring(k):lower()
+        if (n:find("bomb") or n:find("pump") or n:find("hold") or n:find("it")) and v == true then
+            return true
+        end
+    end
+
+    -- 3. Check Workspace HotPumpkin models and HotTag BillboardGui
+    for _, child in ipairs(Workspace:GetChildren()) do
+        local n = child.Name:lower()
+        if (n:find("hotpumpkin") or n:find("pumpkin") or n:find("bomb")) and child:IsA("Model") then
+            local tag = child:FindFirstChild("HotTag")
+            if tag and tag:IsA("BillboardGui") and tag.Adornee and tag.Adornee:IsDescendantOf(char) then
+                return true
+            end
+            local pPos = child:GetPivot().Position
+            if (pPos - root.Position).Magnitude <= 5 then
+                return true
+            end
+        end
+    end
+
+    -- 4. Check ScreenGuis for warnings
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        for _, gui in ipairs(pg:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Enabled then
+                for _, lbl in ipairs(gui:GetDescendants()) do
+                    if lbl:IsA("TextLabel") and lbl.Visible then
+                        local txt = lbl.Text:lower()
+                        if txt:find("pass") or txt:find("run!") or txt:find("you have the") or txt:find("you're it") then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+local function GetNearestOtherPlayer(mode)
+    mode = mode or "Nearest Player"
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local candidates = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local d = (hrp.Position - root.Position).Magnitude
+                table.insert(candidates, { player = p, dist = d })
+            end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+
+    if mode == "Random Player" then
+        return candidates[math.random(1, #candidates)].player
+    elseif mode == "Furthest Player" then
+        table.sort(candidates, function(a, b) return a.dist > b.dist end)
+        return candidates[1].player
+    else
+        table.sort(candidates, function(a, b) return a.dist < b.dist end)
+        return candidates[1].player
+    end
+end
+
 -- ==============================================================
 -- WINDOW & UI LAYOUT
 -- ==============================================================
@@ -276,10 +411,11 @@ local Window = Library:CreateWindow({
 Hub.Interface.ApplyInfoTab(Window)
 
 local Tabs = {
-    Rank    = Window:AddTab("Real Auto Rank", "trophy"),
-    Farm    = Window:AddTab("Auto Farm All", "coins"),
-    Visuals = Window:AddTab("Visuals", "eye"),
-    Player  = Window:AddTab("Player", "user"),
+    Rank       = Window:AddTab("Real Auto Rank", "trophy"),
+    Farm       = Window:AddTab("Auto Farm All", "coins"),
+    Minigames  = Window:AddTab("Minigames", "gamepad"),
+    Visuals    = Window:AddTab("Visuals", "eye"),
+    Player     = Window:AddTab("Player", "user"),
 }
 
 local Groupboxes = {}
@@ -289,6 +425,9 @@ Groupboxes.Quests = Tabs.Rank:AddRightGroupbox("Real Goals (Save Data)")
 
 Groupboxes.Farm = Tabs.Farm:AddLeftGroupbox("AoE Farm & Nuke")
 Groupboxes.Eggs = Tabs.Farm:AddRightGroupbox("Eggs & Hatching")
+
+Groupboxes.Minigames = Tabs.Minigames:AddLeftGroupbox("Minigame God Mode & Auto")
+Groupboxes.Bomb      = Tabs.Minigames:AddRightGroupbox("Pass The Bomb (Hot Potato)")
 
 Groupboxes.Visuals = Tabs.Visuals:AddLeftGroupbox("ESP")
 Groupboxes.Player = Tabs.Player:AddLeftGroupbox("Movement")
@@ -301,6 +440,8 @@ local QuestLabels = {
 }
 
 local StatusLabel = Groupboxes.Rank:AddLabel("Status: Idle")
+local MinigameStatusLabel = Groupboxes.Minigames:AddLabel("Minigame: Idle (Waiting for round)")
+local BombStatusLabel     = Groupboxes.Bomb:AddLabel("Bomb Status: Clean (No Bomb)")
 
 Groupboxes.Rank:AddToggle("AutoRank", {
     Text = "Enable Real Auto Rank",
@@ -478,6 +619,63 @@ Groupboxes.Eggs:AddSlider("HatchAmount", {
     Rounding = 0,
 })
 
+Groupboxes.Minigames:AddToggle("MinigameGodMode", {
+    Text = "God Mode (Under Map Safe Floor)",
+    Default = true,
+    Tooltip = "Builds an invincible platform under the arena floor and anchors you there. Immune to sweepers, monsters, and traps."
+})
+
+Groupboxes.Minigames:AddDropdown("MinigamePosition", {
+    Text = "Safe Floor Position",
+    Values = { "Under Map (-14 Studs)", "Above Arena (+32 Studs)" },
+    Default = 1,
+    Multi = false,
+})
+
+Groupboxes.Minigames:AddToggle("MinigameAutoWin", {
+    Text = "Auto Complete Obbies & Mazes",
+    Default = true,
+    Tooltip = "Detects bridge endpoints and portals to automatically complete minigames."
+})
+
+Groupboxes.Bomb:AddToggle("AutoPassBomb", {
+    Text = "⚡ Instant Pass Bomb / Hot Pumpkin",
+    Default = true,
+    Tooltip = "When the lit bomb is attached to you, instantaneously teleports into the nearest player to pass it, then retreats safely!"
+})
+
+Groupboxes.Bomb:AddDropdown("BombTargetMode", {
+    Text = "Target Selection",
+    Values = { "Nearest Player", "Furthest Player", "Random Player" },
+    Default = 1,
+    Multi = false,
+})
+
+Groupboxes.Bomb:AddSlider("BombRetreatHeight", {
+    Text = "Retreat Height (Studs)",
+    Min = 15,
+    Max = 60,
+    Default = 28,
+    Rounding = 0,
+})
+
+Groupboxes.Bomb:AddButton({
+    Text = "Pass Bomb Now (Manual Trigger)",
+    Func = function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+
+        local targetPlr = GetNearestOtherPlayer(Options.BombTargetMode and Options.BombTargetMode.Value)
+        local char, root = GetCharacter()
+        if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") and root then
+            root.CFrame = targetPlr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -1.0)
+            pcall(function() Library:Notify("Teleported into " .. targetPlr.DisplayName .. " to pass bomb!", 3) end)
+        else
+            pcall(function() Library:Notify("No eligible players found!", 3) end)
+        end
+    end
+})
+
 Groupboxes.Visuals:AddToggle("BreakablesESP", {
     Text = "ESP Rare Breakables",
     Default = false,
@@ -504,6 +702,124 @@ Groupboxes.Player:AddToggle("InfiniteJump", {
 -- ==============================================================
 -- BACKGROUND LOOPS
 -- ==============================================================
+
+local MinigameArenaFloorY = nil
+local LastBombPassTick = 0
+
+task.spawn(function()
+    if setthreadidentity then setthreadidentity(8)
+    elseif setidentity then setidentity(8) end
+
+    while Running do
+        task.wait(0.12)
+        local inMinigame, gameId = IsInMinigame()
+        local char, root = GetCharacter()
+
+        if inMinigame and root then
+            -- 1. Determine arena floor Y level
+            if not MinigameArenaFloorY then
+                local floor = Workspace:FindFirstChild("Floor", true) or Workspace:FindFirstChild("PlayArea", true) or Workspace:FindFirstChild("Bounds", true)
+                if floor and floor:IsA("BasePart") then
+                    MinigameArenaFloorY = floor.Position.Y
+                else
+                    MinigameArenaFloorY = root.Position.Y
+                end
+            end
+
+            -- 2. Check if player has the bomb / hot pumpkin
+            local hasBomb = PlayerHasBomb()
+
+            if hasBomb and Toggles.AutoPassBomb and Toggles.AutoPassBomb.Value then
+                SafeSetText(BombStatusLabel, "Bomb: ⚠️ YOU HAVE BOMB! Passing...")
+                SafeSetText(MinigameStatusLabel, "Minigame: Passing Bomb to nearest player!")
+
+                local targetMode = (Options.BombTargetMode and Options.BombTargetMode.Value) or "Nearest Player"
+                local targetPlr = GetNearestOtherPlayer(targetMode)
+
+                if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = targetPlr.Character.HumanoidRootPart
+                    -- Teleport directly onto the target player
+                    root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -1.0)
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    task.wait(0.14)
+
+                    -- Check if bomb successfully passed
+                    if not PlayerHasBomb() then
+                        LastBombPassTick = tick()
+                        SafeSetText(BombStatusLabel, "Bomb: ✅ Passed to " .. targetPlr.DisplayName .. "!")
+
+                        -- Immediately retreat to safety!
+                        if Toggles.MinigameGodMode and Toggles.MinigameGodMode.Value and SafePlatform then
+                            root.CFrame = SafePlatform.CFrame + Vector3.new(0, 3.5, 0)
+                        else
+                            local retreatY = (Options.BombRetreatHeight and Options.BombRetreatHeight.Value) or 28
+                            root.CFrame = root.CFrame + Vector3.new(0, retreatY, 0)
+                        end
+                        task.wait(0.35)
+                    end
+                else
+                    SafeSetText(BombStatusLabel, "Bomb: ⚠️ No target player available!")
+                end
+            else
+                SafeSetText(BombStatusLabel, "Bomb: Clean (No Bomb)")
+
+                -- 3. Minigame God Mode (Under Map Safe Floor)
+                if Toggles.MinigameGodMode and Toggles.MinigameGodMode.Value then
+                    local posMode = (Options.MinigamePosition and Options.MinigamePosition.Value) or "Under Map (-14 Studs)"
+                    local targetY = MinigameArenaFloorY - 14
+                    if posMode == "Above Arena (+32 Studs)" then
+                        targetY = MinigameArenaFloorY + 32
+                    end
+
+                    local safeCF = CFrame.new(root.Position.X, targetY, root.Position.Z)
+                    local plat = EnsureSafePlatform(safeCF)
+
+                    -- Keep player anchored safely on top of platform
+                    if math.abs(root.Position.Y - (targetY + 3.5)) > 2.5 then
+                        root.CFrame = plat.CFrame + Vector3.new(0, 3.5, 0)
+                    end
+                    root.AssemblyLinearVelocity = Vector3.zero
+
+                    -- Disable collision on limbs to avoid sweepers and monsters
+                    for _, part in ipairs(char:GetChildren()) do
+                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                            part.CanCollide = false
+                        end
+                    end
+
+                    SafeSetText(MinigameStatusLabel, "Minigame: " .. tostring(gameId or "Active") .. " (God Mode Active)")
+                else
+                    RemoveSafePlatform()
+                    SafeSetText(MinigameStatusLabel, "Minigame: " .. tostring(gameId or "Active") .. " (God Mode Off)")
+                end
+
+                -- 4. Auto Complete Obbies & Mazes
+                if Toggles.MinigameAutoWin and Toggles.MinigameAutoWin.Value then
+                    local teleports = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Instances")
+                    local hg = teleports and teleports:FindFirstChild("HalloweenGames")
+                    local tpModel = hg and hg:FindFirstChild("Teleports")
+                    if tpModel then
+                        local leave = tpModel:FindFirstChild("Leave") or tpModel:FindFirstChild("LeaveTeleport")
+                        if leave and (root.Position - leave:GetPivot().Position).Magnitude > 30 then
+                            local goalPart = Workspace:FindFirstChild("Goal", true) or Workspace:FindFirstChild("Finish", true) or Workspace:FindFirstChild("WinPlatform", true)
+                            if goalPart and goalPart:IsA("BasePart") then
+                                root.CFrame = goalPart.CFrame + Vector3.new(0, 4, 0)
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            -- Outside minigame: reset state
+            if MinigameArenaFloorY then
+                MinigameArenaFloorY = nil
+                RemoveSafePlatform()
+            end
+            SafeSetText(MinigameStatusLabel, "Minigame: Idle (Waiting for round)")
+            SafeSetText(BombStatusLabel, "Bomb: Idle (Not in minigame)")
+        end
+    end
+end)
 
 task.spawn(function()
     while Running do
