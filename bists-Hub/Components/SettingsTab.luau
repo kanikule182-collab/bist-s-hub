@@ -1,4 +1,4 @@
-local GeminiHub = (getgenv and (getgenv().BistsHub or getgenv().GeminiHub)) or _G.BistsHub or _G.GeminiHub
+local GeminiHub = (getgenv and (getgenv().OpenHub or getgenv().BistsHub or getgenv().GeminiHub)) or _G.OpenHub or _G.BistsHub or _G.GeminiHub
 
 return function(Window)
 	local function CloneReference(Object)
