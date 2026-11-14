@@ -3543,13 +3543,13 @@ if Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallme
 			local Method = GeminiHub.Environment.getnamecallmethod()
 
 			if Self.Name == "Crouch" and Method == "FireServer" then
-				if Toggles.CrouchSpoof.Value or Toggles.PositionSpoof.Value then
+				if (Toggles.CrouchSpoof and Toggles.CrouchSpoof.Value) or (Toggles.PositionSpoof and Toggles.PositionSpoof.Value) then
 					Args[1] = true
 				end
 				Args[2] = true
 			end
 
-			if Self.Name == "ClutchHeartbeat" and Method == "FireServer" and Toggles.AutoHeartbeatMinigame.Value or Self.Name == "HideMonster" and Method == "FireServer" and Toggles.AutoHeartbeatMinigame.Value then
+			if (Self.Name == "ClutchHeartbeat" or Self.Name == "HideMonster") and Method == "FireServer" and Toggles.AutoHeartbeatMinigame and Toggles.AutoHeartbeatMinigame.Value then
 				return
 			end
 
@@ -4126,7 +4126,7 @@ Functions.HandleCharacter = function(NewCharacter)
 			end
 		end
 
-		if (Toggles.CrouchSpoof.Value or Toggles.PositionSpoof.Value) and RemotesFolder:FindFirstChild("Crouch") then
+		if ((Toggles.CrouchSpoof and Toggles.CrouchSpoof.Value) or (Toggles.PositionSpoof and Toggles.PositionSpoof.Value)) and RemotesFolder:FindFirstChild("Crouch") then
 			RemotesFolder.Crouch:FireServer(true, true)
 		end
 
@@ -4135,7 +4135,7 @@ Functions.HandleCharacter = function(NewCharacter)
 		end
 
 		if Floor == "OldHotel" or Floor == "Fools" then
-			local SpoofOffset = Toggles.PositionSpoof.Value and Functions.GetNearestEntity() and 200 or Toggles.FigureGodmode.Value and Functions.GetNearestFigure() and 200 or 0
+			local SpoofOffset = (Toggles.PositionSpoof and Toggles.PositionSpoof.Value and Functions.GetNearestEntity() and 200) or (Toggles.FigureGodmode and Toggles.FigureGodmode.Value and Functions.GetNearestFigure() and 200) or 0
 			Globals.SpoofOffset = SpoofOffset
 			Collision.Position = RootPart.Position + Vector3.new(0, SpoofOffset, 0)
 			Collision.CanCollide = false
