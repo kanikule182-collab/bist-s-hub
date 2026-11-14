@@ -949,35 +949,67 @@ end
 Globals.TrackedNoiseTVs = {}
 Globals.TrackedCreaks = {}
 
-Functions.BreakNoiseTV = function(tv)
-	if not tv or not tv.Parent then return end
+Functions.BreakNoiseTV = function(tv, force)
+	if not tv or not tv.Parent then return false end
 	local root = tv:IsA("Model") and tv or (tv:FindFirstAncestorOfClass("Model") or tv)
-	if not root or not root.Parent then return end
-	if root == Character or root:IsDescendantOf(Character) or root:FindFirstChildOfClass("Humanoid") then return end
+	if not root or not root.Parent then return false end
+	if root == Character or root:IsDescendantOf(Character) or root:FindFirstChildOfClass("Humanoid") then return false end
 
 	-- Ensure this is NOT the Noise monster itself! Noise monster must never be flinged or broken like a TV!
 	local rName = root.Name:lower()
 	local hasTVParts = root:FindFirstChild("TVMain", true) or root:FindFirstChild("TVScreen", true) or root:FindFirstChild("CartNudgePrompt", true) or root:FindFirstChild("CartPrompt", true) or root:FindFirstChild("CartReleased", true) or root.Name == "ShoppingCart"
 	if (rName:find("noise") or rName:find("hijack")) and not hasTVParts then
-		return
+		return false
 	end
 
-	if root:GetAttribute("GeminiTVBroken") then return end
-	root:SetAttribute("GeminiTVBroken", true)
+	local cartModel = (root.Name == "ShoppingCart" or root:FindFirstChild("CartNudgePrompt", true)) and root or (root:FindFirstAncestor("ShoppingCart") or root)
+	local tvModel = root:FindFirstChild("TVMain", true) and (root:FindFirstChild("TVMain", true).Parent) or root
+	local base = (cartModel or root):FindFirstChild("Base", true) or (cartModel or root):FindFirstChild("Collider", true) or (cartModel or root).PrimaryPart
+
+	if not base or not base:IsA("BasePart") then return false end
+
+	local dist = RootPart and (RootPart.Position - base.Position).Magnitude or 999
+
+	-- If the player is too far away (> 22 studs) and force is not set, wait until player approaches so server registers prompt push
+	if dist > 22 and not force then
+		return false
+	end
+
+	if root:GetAttribute("GeminiTVBroken") then return true end
 
 	pcall(function()
-		local tvModel = root:FindFirstChild("TVMain", true) and (root:FindFirstChild("TVMain", true).Parent) or root
-		local cartModel = (root.Name == "ShoppingCart" or root:FindFirstChild("CartNudgePrompt", true)) and root or (root:FindFirstAncestor("ShoppingCart") or root)
+		-- If force was requested from far away, briefly bring root closer so server validates proximity
+		local oldCF = nil
+		if force and dist > 15 and RootPart then
+			oldCF = RootPart.CFrame
+			pcall(function() RootPart.CFrame = base.CFrame + Vector3.new(0, 3, 0) end)
+			task.wait(0.05)
+		end
 
-		-- 1. Trigger CartPrompt / CartNudgePrompt push prompts so server registers legitimate push action
+		-- 1. Trigger CartPrompt / CartNudgePrompt with full hold duration so server registers legitimate push
 		for _, prompt in ipairs((cartModel or root):GetDescendants()) do
-			if prompt:IsA("ProximityPrompt") then
+			if prompt:IsA("ProximityPrompt") and prompt.Enabled then
 				pcall(function()
+					prompt.RequiresLineOfSight = false
+					prompt.MaxActivationDistance = 50
+					local hold = prompt.HoldDuration or 0.2
 					if fireproximityprompt then
 						fireproximityprompt(prompt, 0)
+						fireproximityprompt(prompt, hold)
 					end
+					prompt:InputHoldBegin()
+					task.delay(hold + 0.05, function()
+						pcall(function() prompt:InputHoldEnd() end)
+					end)
 				end)
 			end
+		end
+
+		-- Restore position if spoofed
+		if oldCF and RootPart then
+			task.delay(0.12, function()
+				pcall(function() RootPart.CFrame = oldCF end)
+			end)
 		end
 
 		-- 2. Fire CartReleased / CartAttached bindables if present
@@ -990,16 +1022,13 @@ Functions.BreakNoiseTV = function(tv)
 			pcall(function() att:Fire() end)
 		end
 
-		-- 3. Simulate natural physical roll down the ramp/stairs (NOT voiding into ground)
-		local base = (cartModel or root):FindFirstChild("Base", true) or (cartModel or root):FindFirstChild("Collider", true) or (cartModel or root).PrimaryPart
-		if base and base:IsA("BasePart") then
-			local forward = base.CFrame.LookVector
-			local rollVel = forward * 45 + Vector3.new(0, -12, 0)
-			for _, part in ipairs((cartModel or root):GetDescendants()) do
-				if part:IsA("BasePart") and part.CanCollide then
-					part.AssemblyLinearVelocity = rollVel
-					part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
-				end
+		-- 3. Simulate natural physical roll down the ramp/stairs (forward rolling down stairs)
+		local forward = base.CFrame.LookVector
+		local rollVel = forward * 45 + Vector3.new(0, -12, 0)
+		for _, part in ipairs((cartModel or root):GetDescendants()) do
+			if part:IsA("BasePart") and part.CanCollide then
+				part.AssemblyLinearVelocity = rollVel
+				part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
 			end
 		end
 
@@ -1022,52 +1051,57 @@ Functions.BreakNoiseTV = function(tv)
 			end
 		end
 
-		-- 5. Execute game's official StairwellTVDebris client module if available for authentic screen shatter
-		pcall(function()
-			local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
-			if floorRep then
-				local cr = floorRep:FindFirstChild("ClientRemote")
-				if cr and cr:FindFirstChild("StairwellTVDebris") then
-					local debrisMod = require(cr.StairwellTVDebris)
-					if typeof(debrisMod) == "function" then
-						debrisMod(nil, tvModel or root)
+		-- Mark broken only after prompt and push have been dispatched
+		root:SetAttribute("GeminiTVBroken", true)
+
+		-- 5. Execute game's official StairwellTVDebris client module after push delay
+		task.delay(0.15, function()
+			pcall(function()
+				local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
+				if floorRep then
+					local cr = floorRep:FindFirstChild("ClientRemote")
+					if cr and cr:FindFirstChild("StairwellTVDebris") then
+						local debrisMod = require(cr.StairwellTVDebris)
+						if typeof(debrisMod) == "function" then
+							debrisMod(nil, tvModel or root)
+						end
 					end
 				end
-			end
-		end)
+			end)
 
-		-- 6. Direct visual screen shatter fallback (guarantees TV breaks even if module was deferred)
-		pcall(function()
-			local targetTV = tvModel or root
-			local tvScreen = targetTV:FindFirstChild("TVScreen", true)
-			local brokenScreen = targetTV:FindFirstChild("BrokenScreen", true)
-			local staticSnd = targetTV:FindFirstChild("Static", true)
-			local shatterSnd = targetTV:FindFirstChild("Shatter", true)
+			-- Direct visual screen shatter fallback
+			pcall(function()
+				local targetTV = tvModel or root
+				local tvScreen = targetTV:FindFirstChild("TVScreen", true)
+				local brokenScreen = targetTV:FindFirstChild("BrokenScreen", true)
+				local staticSnd = targetTV:FindFirstChild("Static", true)
+				local shatterSnd = targetTV:FindFirstChild("Shatter", true)
 
-			if staticSnd and staticSnd:IsA("Sound") then staticSnd:Stop() end
-			if shatterSnd and shatterSnd:IsA("Sound") then shatterSnd:Play() end
+				if staticSnd and staticSnd:IsA("Sound") then staticSnd:Stop() end
+				if shatterSnd and shatterSnd:IsA("Sound") then shatterSnd:Play() end
 
-			if tvScreen and tvScreen:IsA("BasePart") then
-				tvScreen.Material = Enum.Material.Plastic
-				tvScreen.Transparency = 1
-				local tex = tvScreen:FindFirstChild("StaticTexture", true)
-				if tex then tex.Transparency = 1 end
-				local hl = tvScreen:FindFirstChild("Highlight", true)
-				if hl then hl.Enabled = false end
-				for _, light in ipairs(tvScreen:GetDescendants()) do
-					if light:IsA("Light") then light.Enabled = false end
+				if tvScreen and tvScreen:IsA("BasePart") then
+					tvScreen.Material = Enum.Material.Plastic
+					tvScreen.Transparency = 1
+					local tex = tvScreen:FindFirstChild("StaticTexture", true)
+					if tex then tex.Transparency = 1 end
+					local hl = tvScreen:FindFirstChild("Highlight", true)
+					if hl then hl.Enabled = false end
+					for _, light in ipairs(tvScreen:GetDescendants()) do
+						if light:IsA("Light") then light.Enabled = false end
+					end
 				end
-			end
 
-			if brokenScreen and brokenScreen:IsA("BasePart") then
-				brokenScreen.Material = Enum.Material.Glass
-				brokenScreen.Transparency = 0
-				local d = brokenScreen:FindFirstChild("Decal", true)
-				if d then d.Transparency = 0.75 end
-			end
+				if brokenScreen and brokenScreen:IsA("BasePart") then
+					brokenScreen.Material = Enum.Material.Glass
+					brokenScreen.Transparency = 0
+					local d = brokenScreen:FindFirstChild("Decal", true)
+					if d then d.Transparency = 0.75 end
+				end
+			end)
 		end)
 
-		-- 7. Neutralize Noise and Hijack damage hitboxes (Godmode) without affecting visibility or limbs
+		-- 6. Neutralize Noise and Hijack damage hitboxes (Godmode) without affecting visibility or limbs
 		if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
 			for _, r in pairs(CurrentRooms:GetChildren()) do
 				for _, entity in ipairs(r:GetChildren()) do
@@ -1084,6 +1118,7 @@ Functions.BreakNoiseTV = function(tv)
 			end
 		end
 	end)
+	return true
 end
 
 -- Backward compatibility alias
@@ -1898,6 +1933,13 @@ Groupboxes.Exploits_BypassRight:AddDropdown("InfiniteItemsList", {
 	Text = "Item List",
 	Values = { "Lockpicks", "Skeleton Key", "Shears", "Multitool" },
 	Multi = true, AllowNull = true,
+	Disabled = not Functions.CheckCompatability({"fireproximityprompt"}),
+	DisabledTooltip = Globals.IncompatibleMessage
+})
+
+Groupboxes.Exploits_BypassRight:AddToggle("InfinitePickupToggle", {
+	Text = "Infinite Item Pickup", Default = true,
+	Tooltip = "Allows infinitely taking items from packs (Gween Soda Pack, crates) without lockouts.",
 	Disabled = not Functions.CheckCompatability({"fireproximityprompt"}),
 	DisabledTooltip = Globals.IncompatibleMessage
 })
@@ -4101,8 +4143,8 @@ Functions.HandleCharacter = function(NewCharacter)
 			end
 		end
 
-		if Toggles.AmbientToggle.Value then
-			Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = Options.AmbientColor.Value }):Play()
+		if Toggles.AmbientToggle.Value and Services.Lighting.Ambient ~= Options.AmbientColor.Value then
+			Services.Lighting.Ambient = Options.AmbientColor.Value
 		end
 
 		if Main_Game then
@@ -5042,6 +5084,14 @@ Functions.HandleObject = function(Object)
 		if Toggles.PromptClip.Value        then Object.RequiresLineOfSight = false end
 		Object.MaxActivationDistance = Object:GetAttribute("MaxActivationDistance_Old") * Options.PromptReachSlider.Value
 
+		if (Toggles.InfinitePickupToggle and Toggles.InfinitePickupToggle.Value) or (Toggles.InfiniteItemsToggle and Toggles.InfiniteItemsToggle.Value) then
+			if Object:GetAttribute("GateNoTool") then Object:SetAttribute("GateNoTool", nil) end
+			if Object.Parent and Object.Parent:IsA("Model") then
+				Object.Parent:SetAttribute("CanOwnMultiple", true)
+				Object.Parent:SetAttribute("CanSwap", true)
+			end
+		end
+
 		local LockPromptNames = { UnlockPrompt=true, SkullPrompt=true, LockPrompt=true, ThingToEnable=true, FusesPrompt=true }
 
 		if Functions.CheckCompatability({"fireproximityprompt"}) and Floor ~= "OldHotel" and Floor ~= "Fools" then
@@ -5843,7 +5893,7 @@ Globals.LastAutoInteractFire = tick()
 Connections.AutoInteract = Services.RunService.Heartbeat:Connect(function()
 	local Active = Toggles.AutoInteractToggle.Value or Options.AutoInteractKeybind:GetState()
 	if not Active then return end
-	if tick() - Globals.LastAutoInteractFire < 1/60 then return end
+	if tick() - Globals.LastAutoInteractFire < 0.08 then return end
 	Globals.LastAutoInteractFire = tick()
 
 	local currentRoomAttr = LocalPlayer:GetAttribute("CurrentRoom")
@@ -5871,6 +5921,19 @@ Connections.AutoInteract = Services.RunService.Heartbeat:Connect(function()
 end)
 
 Connections.InfiniteItemsHandler = Services.ProximityPromptService.PromptTriggered:Connect(function(Object)
+	if Toggles.InfinitePickupToggle and Toggles.InfinitePickupToggle.Value then
+		task.delay(0.05, function()
+			if Object and Object.Parent then
+				Object.Enabled = true
+				if Object:GetAttribute("GateNoTool") then Object:SetAttribute("GateNoTool", nil) end
+				if Object.Parent:IsA("Model") then
+					Object.Parent:SetAttribute("CanOwnMultiple", true)
+					Object.Parent:SetAttribute("CanSwap", true)
+				end
+			end
+		end)
+	end
+
 	if not Object:GetAttribute("FakePrompt") then return end
 
 	local ToolNames = { "Lockpick","Shears","SkeletonKey","Key","GeneratorFuse","KeyElectrical","KeyBackdoor","KeyIron", "Multitool" }
