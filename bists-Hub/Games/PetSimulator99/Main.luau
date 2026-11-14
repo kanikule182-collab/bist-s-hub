@@ -102,7 +102,7 @@ local Window = Library:CreateWindow({
 Hub.Interface.ApplyInfoTab(Window)
 
 local Tabs = {
-    Rank    = Window:AddTab("Super Auto Rank", "trophy"),
+    Rank    = Window:AddTab("Real Auto Rank", "trophy"),
     Farm    = Window:AddTab("Auto Farm All", "coins"),
     Visuals = Window:AddTab("Visuals", "eye"),
     Player  = Window:AddTab("Player", "user"),
@@ -110,8 +110,8 @@ local Tabs = {
 
 local Groupboxes = {}
 
-Groupboxes.Rank = Tabs.Rank:AddLeftGroupbox("Super Auto Rank")
-Groupboxes.Quests = Tabs.Rank:AddRightGroupbox("Active Quests Progress")
+Groupboxes.Rank = Tabs.Rank:AddLeftGroupbox("Real Auto Rank")
+Groupboxes.Quests = Tabs.Rank:AddRightGroupbox("Real Goals (Save Data)")
 
 Groupboxes.Farm = Tabs.Farm:AddLeftGroupbox("AoE Farm & Free Gifts")
 Groupboxes.Eggs = Tabs.Farm:AddRightGroupbox("Eggs & Hatching")
@@ -120,30 +120,29 @@ Groupboxes.Visuals = Tabs.Visuals:AddLeftGroupbox("ESP")
 Groupboxes.Player = Tabs.Player:AddLeftGroupbox("Movement")
 
 local QuestLabels = {
-    Hard = Groupboxes.Quests:AddLabel("Hard: Loading..."),
-    Medium = Groupboxes.Quests:AddLabel("Medium: Loading..."),
-    Easy = Groupboxes.Quests:AddLabel("Easy: Loading..."),
+    Goal1 = Groupboxes.Quests:AddLabel("Goal 1: Loading..."),
+    Goal2 = Groupboxes.Quests:AddLabel("Goal 2: Loading..."),
+    Goal3 = Groupboxes.Quests:AddLabel("Goal 3: Loading..."),
+    RankInfo = Groupboxes.Quests:AddLabel("Rank: Loading..."),
 }
 
 local StatusLabel = Groupboxes.Rank:AddLabel("Status: Idle")
 
 Groupboxes.Rank:AddToggle("AutoRank", {
-    Text = "Enable Super Auto Rank",
+    Text = "Enable Real Auto Rank",
     Default = true,
-    Tooltip = "High-speed quest automation: hatches eggs, crushes targets (safes, presents, diamonds), claims stars, and ranks up instantly."
+    Tooltip = "Reads real Save.Goals: hatches latest unlocked egg without rollbacks, breaks Safes, Presents, Diamonds, and auto-levels."
 })
 
 Groupboxes.Rank:AddToggle("AutoClaimRank", {
-    Text = "Instant Stars & Rewards Claim",
+    Text = "Auto Claim Stars & Rewards",
     Default = true,
-    Tooltip = "Continuously claims stars and rank progress without delay."
 })
 
 Groupboxes.Rank:AddDivider()
 
 Groupboxes.Rank:AddButton({
     Text = "Claim All Rank Rewards Now",
-    Tooltip = "Fires Ranks_ClaimAll to claim all available stars and items.",
     Func = function()
         if Network and Network:FindFirstChild("Ranks_ClaimAll") then
             Network.Ranks_ClaimAll:FireServer()
@@ -154,7 +153,6 @@ Groupboxes.Rank:AddButton({
 
 Groupboxes.Rank:AddButton({
     Text = "Trigger Rank Up Now",
-    Tooltip = "Attempts to rank up if star requirements are met.",
     Func = function()
         if Network and Network:FindFirstChild("Ranks_RankUp") then
             Network.Ranks_RankUp:FireServer()
@@ -166,38 +164,42 @@ Groupboxes.Rank:AddButton({
 Groupboxes.Farm:AddToggle("AoEFarm", {
     Text = "AoE Breakables Multi-Farm",
     Default = true,
-    Tooltip = "Attacks up to 15 breakables simultaneously in radius."
 })
 
 Groupboxes.Farm:AddToggle("AutoCollect", {
     Text = "Hyper Magnet (Orbs & Lootbags)",
     Default = true,
-    Tooltip = "Instantly magnetizes all drops, coins, gems, and lootbags to character."
 })
 
 Groupboxes.Farm:AddToggle("AutoFreeGifts", {
     Text = "Auto Claim Free Gifts",
     Default = true,
-    Tooltip = "Automatically claims timed free gifts 1-12 continuously."
 })
 
 Groupboxes.Farm:AddToggle("AutoEquipBest", {
     Text = "Auto Equip Best Pets",
     Default = true,
-    Tooltip = "Equips your strongest pets periodically."
 })
 
 Groupboxes.Eggs:AddToggle("AutoHatch", {
     Text = "Auto Hatch Eggs",
     Default = false,
-    Tooltip = "Continuously buys and hatches eggs."
 })
 
 Groupboxes.Eggs:AddDropdown("EggSelect", {
     Text = "Select Egg",
-    Values = { "Cracked Egg", "Spotted Egg", "Wood Egg", "Grass Egg", "Stone Egg" },
+    Values = { "Latest Unlocked (Auto)", "Cracked Egg", "Spotted Egg", "Wood Egg" },
     Default = 1,
     Multi = false,
+})
+
+Groupboxes.Eggs:AddSlider("HatchDelaySlider", {
+    Text = "Hatch Delay (Seconds)",
+    Min = 1.5,
+    Max = 6,
+    Default = 2.5,
+    Rounding = 1,
+    Tooltip = "Matches server debounce so no rollbacks happen."
 })
 
 Groupboxes.Eggs:AddSlider("HatchAmount", {
@@ -211,7 +213,6 @@ Groupboxes.Eggs:AddSlider("HatchAmount", {
 Groupboxes.Visuals:AddToggle("BreakablesESP", {
     Text = "ESP Rare Breakables",
     Default = false,
-    Tooltip = "Highlights Presents, Safes, Pinatas, and Diamond Piles."
 })
 
 Groupboxes.Player:AddSlider("WalkSpeedSlider", {
@@ -245,25 +246,62 @@ local function DamageBreakable(uid)
     end
 end
 
-local function GetQuestsList()
-    local quests = {}
-    local holder = LocalPlayer.PlayerGui:FindFirstChild("GoalsSide")
-    local qHolder = holder and holder:FindFirstChild("QuestsHolder", true)
-    if not qHolder then return quests end
+local function GetBestUnlockedEgg()
+    local bestNum = 1
+    local bestName = "Cracked Egg"
+    local bestCap = nil
 
-    for _, child in ipairs(qHolder:GetChildren()) do
-        if child:IsA("GuiObject") and child.Visible then
-            local title = child:FindFirstChild("Title", true) or child:FindFirstChild("TextLabel", true)
-            local progress = child:FindFirstChild("Progress", true) or child:FindFirstChild("Amount", true)
-            table.insert(quests, {
-                Name = child.Name,
-                Title = title and title.Text or "",
-                Progress = progress and progress.Text or "",
-                Lower = (title and title.Text:lower()) or ""
-            })
+    pcall(function()
+        local save = require(ReplicatedStorage.Library.Client.Save).Get()
+        if save and save.MaximumAvailableEgg then
+            bestNum = save.MaximumAvailableEgg
         end
+    end)
+
+    pcall(function()
+        local dir = require(ReplicatedStorage.Library.Directory)
+        if dir and dir.Eggs then
+            for id, egg in pairs(dir.Eggs) do
+                if egg.eggNumber == bestNum then
+                    bestName = tostring(id)
+                    break
+                end
+            end
+        end
+    end)
+
+    local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+    if eggsMain then
+        bestCap = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule")
     end
-    return quests
+
+    return bestName, bestNum, bestCap
+end
+
+local function GetRealGoals()
+    local goals = {}
+    local rankNum = 1
+    local starsNum = 0
+    pcall(function()
+        local save = require(ReplicatedStorage.Library.Client.Save).Get()
+        if save then
+            rankNum = save.Rank or 1
+            starsNum = save.RankStars or 0
+            if save.Goals then
+                for k, g in pairs(save.Goals) do
+                    table.insert(goals, {
+                        Index = tostring(k),
+                        Type = g.Type,
+                        BreakableType = g.BreakableType,
+                        Amount = g.Amount or 0,
+                        Progress = g.Progress or 0,
+                        Stars = g.Stars or 1
+                    })
+                end
+            end
+        end
+    end)
+    return goals, rankNum, starsNum
 end
 
 local function FindBreakablesByFilter(filter, maxCount)
@@ -277,6 +315,10 @@ local function FindBreakablesByFilter(filter, maxCount)
 
     local results = {}
     for _, item in ipairs(breakables:GetChildren()) do
+        if not (item:IsA("Model") or item:IsA("BasePart")) then
+            continue
+        end
+
         local id = (item:GetAttribute("BreakableID") or item.Name):lower()
         local matches = false
 
@@ -313,24 +355,35 @@ end
 local function HatchEgg(eggName, count)
     if not Network or not Network:FindFirstChild("Eggs_RequestPurchase") then return false end
     count = math.clamp(count or 1, 1, 3)
-    eggName = eggName or "Cracked Egg"
 
-    local eggCapsule = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main") and Workspace.__THINGS.Eggs.Main:FindFirstChild("1 - Egg Capsule")
+    local bestName, bestNum, bestCapsule = GetBestUnlockedEgg()
+    if not eggName or eggName == "Latest Unlocked (Auto)" or eggName == "Best" then
+        eggName = bestName
+    end
+
+    local eggCapsule = (eggName == bestName and bestCapsule) or nil
+    if not eggCapsule then
+        local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+        if eggsMain then
+            eggCapsule = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule") or eggsMain:FindFirstChild("1 - Egg Capsule")
+        end
+    end
+
     local targetPos = eggCapsule and eggCapsule:GetPivot().Position or Vector3.new(95, 21, -155)
-
     local char, root = GetCharacter()
     if not root then return false end
 
-    local oldPos = root.CFrame
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 4))
-    task.wait(0.15)
+    -- Only move to capsule if player is not near it
+    if (root.Position - targetPos).Magnitude > 16 then
+        root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 4))
+        task.wait(0.35)
+    end
 
     local success, res = pcall(function()
         return Network.Eggs_RequestPurchase:InvokeServer(eggName, count)
     end)
 
-    task.wait(0.1)
-    root.CFrame = oldPos
+    -- NO TELEPORT BACK! Player stays at egg to avoid server cancel / rollback!
     return success and res
 end
 
@@ -398,28 +451,38 @@ end)
 
 task.spawn(function()
     while Running do
-        task.wait(0.8)
+        local delay = (Options.HatchDelaySlider and Options.HatchDelaySlider.Value) or 2.5
+        task.wait(delay)
         if Toggles.AutoHatch and Toggles.AutoHatch.Value then
-            local eggName = (Options.EggSelect and Options.EggSelect.Value) or "Cracked Egg"
+            local eggName = (Options.EggSelect and Options.EggSelect.Value) or "Latest Unlocked (Auto)"
             local amt = (Options.HatchAmount and Options.HatchAmount.Value) or 1
             HatchEgg(eggName, amt)
         end
     end
 end)
 
+local LastHatchTick = 0
+
 task.spawn(function()
     while Running do
         task.wait(0.4)
-        local quests = GetQuestsList()
+        local goals, rankNum, starsNum = GetRealGoals()
 
-        if QuestLabels.Hard then
-            QuestLabels.Hard:SetText("Hard: " .. (quests[1] and (quests[1].Title .. " (" .. quests[1].Progress .. ")") or "Completed"))
+        if QuestLabels.RankInfo then
+            QuestLabels.RankInfo:SetText("Rank: " .. tostring(rankNum) .. " | Stars: " .. tostring(starsNum))
         end
-        if QuestLabels.Medium then
-            QuestLabels.Medium:SetText("Medium: " .. (quests[2] and (quests[2].Title .. " (" .. quests[2].Progress .. ")") or "Completed"))
-        end
-        if QuestLabels.Easy then
-            QuestLabels.Easy:SetText("Easy: " .. (quests[3] and (quests[3].Title .. " (" .. quests[3].Progress .. ")") or "Completed"))
+
+        for i = 1, 3 do
+            local g = goals[i]
+            local label = QuestLabels["Goal" .. i]
+            if label then
+                if g then
+                    local desc = (g.BreakableType and ("Break " .. g.BreakableType)) or (g.Type == 20 and "Hatch Best Eggs") or ("Type " .. tostring(g.Type))
+                    label:SetText("Goal " .. i .. ": " .. desc .. " (" .. g.Progress .. "/" .. g.Amount .. ") ⭐" .. g.Stars)
+                else
+                    label:SetText("Goal " .. i .. ": Completed")
+                end
+            end
         end
 
         if Toggles.AutoClaimRank and Toggles.AutoClaimRank.Value and Network then
@@ -432,76 +495,71 @@ task.spawn(function()
         end
 
         if Toggles.AutoRank and Toggles.AutoRank.Value then
-            StatusLabel:SetText("Status: Auto-Solving Quests...")
-
             local handled = false
-            for _, q in ipairs(quests) do
-                local text = q.Lower
 
-                if text:find("hatch") or text:find("egg") then
-                    StatusLabel:SetText("Status: Hatching eggs for quest...")
-                    HatchEgg("Cracked Egg", 1)
-                    handled = true
-                    break
-                elseif text:find("safe") then
-                    StatusLabel:SetText("Status: Targeting Safes...")
-                    local targets = FindBreakablesByFilter("safe", 6)
-                    if #targets > 0 then
-                        for _, t in ipairs(targets) do
-                            local uid = t:GetAttribute("BreakableUID") or t.Name
-                            for _ = 1, 3 do DamageBreakable(uid) end
+            for _, g in ipairs(goals) do
+                if g.Progress < g.Amount then
+                    -- Check if it's an Egg hatching goal (Type == 20)
+                    if g.Type == 20 then
+                        local bestName, bestNum = GetBestUnlockedEgg()
+                        StatusLabel:SetText("Status: Hatching " .. bestName .. " (#" .. bestNum .. ")")
+                        local hatchDelay = (Options.HatchDelaySlider and Options.HatchDelaySlider.Value) or 2.5
+                        if tick() - LastHatchTick >= hatchDelay then
+                            LastHatchTick = tick()
+                            HatchEgg(bestName, 1)
                         end
                         handled = true
                         break
-                    end
-                elseif text:find("present") then
-                    StatusLabel:SetText("Status: Targeting Presents...")
-                    local targets = FindBreakablesByFilter("present", 6)
-                    if #targets > 0 then
-                        for _, t in ipairs(targets) do
-                            local uid = t:GetAttribute("BreakableUID") or t.Name
-                            for _ = 1, 3 do DamageBreakable(uid) end
+                    elseif g.BreakableType == "Safe" then
+                        StatusLabel:SetText("Status: Crushing Safes (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        local targets = FindBreakablesByFilter("safe", 6)
+                        if #targets > 0 then
+                            for _, t in ipairs(targets) do
+                                local uid = t:GetAttribute("BreakableUID") or t.Name
+                                for _ = 1, 3 do DamageBreakable(uid) end
+                            end
+                            handled = true
+                            break
                         end
-                        handled = true
-                        break
-                    end
-                elseif text:find("diamond") or text:find("gem") then
-                    StatusLabel:SetText("Status: Targeting Diamonds...")
-                    local targets = FindBreakablesByFilter("diamond", 6)
-                    if #targets > 0 then
-                        for _, t in ipairs(targets) do
-                            local uid = t:GetAttribute("BreakableUID") or t.Name
-                            for _ = 1, 3 do DamageBreakable(uid) end
+                    elseif g.BreakableType == "Present" then
+                        StatusLabel:SetText("Status: Crushing Presents (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        local targets = FindBreakablesByFilter("present", 6)
+                        if #targets > 0 then
+                            for _, t in ipairs(targets) do
+                                local uid = t:GetAttribute("BreakableUID") or t.Name
+                                for _ = 1, 3 do DamageBreakable(uid) end
+                            end
+                            handled = true
+                            break
                         end
-                        handled = true
-                        break
-                    end
-                elseif text:find("coin") or text:find("break") or text:find("crate") then
-                    StatusLabel:SetText("Status: Breaking coins/crates...")
-                    local targets = FindBreakablesByFilter("coin", 8)
-                    if #targets > 0 then
-                        for _, t in ipairs(targets) do
-                            local uid = t:GetAttribute("BreakableUID") or t.Name
-                            for _ = 1, 2 do DamageBreakable(uid) end
+                    elseif g.Type == 9 then
+                        StatusLabel:SetText("Status: Crushing Diamonds (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        local targets = FindBreakablesByFilter("diamond", 6)
+                        if #targets > 0 then
+                            for _, t in ipairs(targets) do
+                                local uid = t:GetAttribute("BreakableUID") or t.Name
+                                for _ = 1, 3 do DamageBreakable(uid) end
+                            end
+                            handled = true
+                            break
                         end
-                        handled = true
-                        break
+                    elseif g.BreakableType == "Coin" or g.Type == 1 then
+                        StatusLabel:SetText("Status: Crushing Coins (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        local targets = FindBreakablesByFilter("coin", 8)
+                        if #targets > 0 then
+                            for _, t in ipairs(targets) do
+                                local uid = t:GetAttribute("BreakableUID") or t.Name
+                                for _ = 1, 2 do DamageBreakable(uid) end
+                            end
+                            handled = true
+                            break
+                        end
                     end
-                elseif text:find("unlock") or text:find("area") or text:find("zone") then
-                    StatusLabel:SetText("Status: Unlocking next zones...")
-                    if Network and Network:FindFirstChild("Zones_RequestPurchase") then
-                        pcall(function()
-                            Network.Zones_RequestPurchase:InvokeServer("Colorful Forest")
-                            Network.Zones_RequestPurchase:InvokeServer("Castle")
-                        end)
-                    end
-                    handled = true
-                    break
                 end
             end
 
             if not handled then
-                StatusLabel:SetText("Status: Speed-Farming objects...")
+                StatusLabel:SetText("Status: AoE Farming objects...")
                 local targets = FindBreakablesByFilter("any", 10)
                 for _, t in ipairs(targets) do
                     local uid = t:GetAttribute("BreakableUID") or t.Name
@@ -541,18 +599,20 @@ task.spawn(function()
             local breakables = things and things:FindFirstChild("Breakables")
             if breakables then
                 for _, item in ipairs(breakables:GetChildren()) do
-                    local id = (item:GetAttribute("BreakableID") or item.Name):lower()
-                    if id:find("present") or id:find("diamond") or id:find("pinata") or id:find("safe") then
-                        if not ESPTracked[item] then
-                            ESPTracked[item] = true
-                            pcall(function()
-                                Hub.ESPLibrary:AddESP({
-                                    Target = item,
-                                    Name = item:GetAttribute("BreakableID") or item.Name,
-                                    Color = Color3.fromRGB(255, 215, 0),
-                                    MaxDistance = 400
-                                })
-                            end)
+                    if item:IsA("Model") or item:IsA("BasePart") then
+                        local id = (item:GetAttribute("BreakableID") or item.Name):lower()
+                        if id:find("present") or id:find("diamond") or id:find("pinata") or id:find("safe") then
+                            if not ESPTracked[item] then
+                                ESPTracked[item] = true
+                                pcall(function()
+                                    Hub.ESPLibrary:AddESP({
+                                        Target = item,
+                                        Name = item:GetAttribute("BreakableID") or item.Name,
+                                        Color = Color3.fromRGB(255, 215, 0),
+                                        MaxDistance = 400
+                                    })
+                                end)
+                            end
                         end
                     end
                 end
@@ -564,5 +624,5 @@ end)
 Hub.Interface.ApplySettingsTab(Window)
 
 pcall(function()
-    Library:Notify("Open Hub Super Auto loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. "s", 5)
+    Library:Notify("Open Hub Real Auto loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. "s", 5)
 end)
