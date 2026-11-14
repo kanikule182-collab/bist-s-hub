@@ -33,7 +33,7 @@ return function(Window)
     local ImageSize = Enum.ThumbnailSize.Size420x420
     local ImageType = Enum.ThumbnailType.HeadShot
 
-    local Content = Services.Players:GetUserThumbnailAsync(LocalPlayer.UserId, ImageType, ImageSize)
+    local Content = Players:GetUserThumbnailAsync(LocalPlayer.UserId, ImageType, ImageSize)
 
     User:AddImage("UserIcon", {
         Image = Content
