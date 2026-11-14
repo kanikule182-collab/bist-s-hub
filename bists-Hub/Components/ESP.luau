@@ -219,22 +219,14 @@ function Library:AddESP(Parameters)
 	Highlight.Parent = HighlightsFolder
 	Library.Highlights[Object] = Highlight
 
-	-- 3D BillboardGui (hardware-accelerated, locked directly to object mesh)
-	local TargetPart = Object
-	if Object:IsA("Model") then
-		TargetPart = Object.PrimaryPart or Object:FindFirstChildWhichIsA("BasePart") or Object
-	end
-
-	local Billboard = Instance.new("BillboardGui")
-	Billboard.Visible = false
-	Billboard.Name = Library:GenerateRandomString()
-	Billboard.AlwaysOnTop = true
-	Billboard.Size = UDim2.new(0, 200, 0, 40)
-	Billboard.StudsOffset = Vector3.new(0, 0, 0)
-	Billboard.MaxDistance = 99999
-	Billboard.ResetOnSpawn = false
-	Billboard.Adornee = TargetPart
-	Billboard.Parent = BillboardsFolder
+	-- 2D Billboard Text Frame (exact center anchor, hardware-friendly)
+	local TextFrame = Instance.new("Frame")
+	TextFrame.Visible = false
+	TextFrame.Name = Library:GenerateRandomString()
+	TextFrame.Size = UDim2.new(0, 200, 0, 40)
+	TextFrame.BackgroundTransparency = 1
+	TextFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	TextFrame.Parent = BillboardsFolder
 
 	local TextLabel = Instance.new("TextLabel")
 	TextLabel.Name = Library:GenerateRandomString()
@@ -242,6 +234,7 @@ function Library:AddESP(Parameters)
 	TextLabel.Text = Parameters.Text or ""
 	TextLabel.TextTransparency = Library.TextTransparency
 	TextLabel.TextStrokeTransparency = Library.TextOutlineTransparency
+	TextLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	TextLabel.Size = UDim2.new(1, 0, 1, 0)
 	TextLabel.Font = Library.Font
 	TextLabel.TextSize = Library.TextSize
@@ -249,9 +242,9 @@ function Library:AddESP(Parameters)
 	TextLabel.TextYAlignment = Enum.TextYAlignment.Center
 	TextLabel.RichText = true
 	TextLabel.TextColor3 = Parameters.Color or Color3.fromRGB(255, 255, 255)
-	TextLabel.Parent = Billboard
+	TextLabel.Parent = TextFrame
 
-	Library.Frames[Object] = Billboard
+	Library.Frames[Object] = TextFrame
 	Library.Labels[Object] = TextLabel
 	Library.ColorTable[Object] = Parameters.Color or Color3.fromRGB(255, 255, 255)
 	Library.TextTable[Object] = Parameters.Text or ""
@@ -488,19 +481,27 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 				ObjectPos = Object:GetPivot().Position
 			end
 
-			local ScreenPoint, OnScreen = Camera:WorldToScreenPoint(ObjectPos)
-			local IsVisibleOnScreen = OnScreen and ScreenPoint.Z > 0
-
 			local Frame = Library.Frames[Object]
 			local Label = Library.Labels[Object]
 			local CachedHighlight = Library.Highlights[Object]
 			local LineData = Library.Lines[Object]
 			local ActiveColor = Library.Rainbow and RainbowState.Color or (Library.ColorTable[Object] or Color3.fromRGB(255, 255, 255))
 
-			-- Keep Billboard Adornee targeted on physical part if loaded dynamically
-			if Frame and Frame.Adornee ~= TargetPart then
-				Frame.Adornee = TargetPart
+			-- Super-fast Distance Squared check (early exit before screen projection or font rendering)
+			local dx = CamPos.X - ObjectPos.X
+			local dy = CamPos.Y - ObjectPos.Y
+			local dz = CamPos.Z - ObjectPos.Z
+			local DistSq = dx * dx + dy * dy + dz * dz
+			local MaxDist = Library.RenderLimit or 300
+
+			if DistSq > (MaxDist * MaxDist) then
+				if Frame and Frame.Visible then Frame.Visible = false end
+				if LineData and LineData[1] and LineData[1].Visible then LineData[1].Visible = false end
+				continue
 			end
+
+			local ScreenPoint, OnScreen = Camera:WorldToScreenPoint(ObjectPos)
+			local IsVisibleOnScreen = OnScreen and ScreenPoint.Z > 0
 
 			-- Only update highlight color dynamically if Rainbow mode is active (avoids dirtying mesh buffers every frame)
 			if Library.Rainbow and CachedHighlight and CachedHighlight.Parent then
@@ -510,19 +511,31 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 				end
 			end
 
-			-- Update 3D Billboard Label (hardware-accelerated, locked directly to object mesh)
+			-- Update 2D Screen Label (highly optimized, throttled distance re-rasterization)
 			if Frame and Label then
-				Frame.Enabled = IsVisibleOnScreen
 				if IsVisibleOnScreen then
+					Frame.Position = UDim2.new(0, math.round(ScreenPoint.X), 0, math.round(ScreenPoint.Y))
+					if not Frame.Visible then Frame.Visible = true end
+
 					if Library.ShowDistance then
-						local Distance = math.floor((CamPos - ObjectPos).Magnitude)
-						Label.Text = (Library.TextTable[Object] or "") .. "\n" .. '<font size="' .. math.round(Library.TextSize * Library.DistanceSizeRatio) .. '">[' .. Distance .. ']</font>'
+						local Distance = math.floor(math.sqrt(DistSq))
+						local cachedDist = Frame:GetAttribute("CachedDist")
+						if not cachedDist or math.abs(Distance - cachedDist) >= 2 then
+							Frame:SetAttribute("CachedDist", Distance)
+							Label.Text = (Library.TextTable[Object] or "") .. "\n" .. '<font size="' .. math.round(Library.TextSize * Library.DistanceSizeRatio) .. '">[' .. Distance .. ']</font>'
+						end
 					else
-						Label.Text = Library.TextTable[Object] or ""
+						local currentBaseText = Library.TextTable[Object] or ""
+						if Label.Text ~= currentBaseText then
+							Label.Text = currentBaseText
+						end
 					end
+
 					if Library.Rainbow then
 						Label.TextColor3 = ActiveColor
 					end
+				else
+					if Frame.Visible then Frame.Visible = false end
 				end
 			end
 
