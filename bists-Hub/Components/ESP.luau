@@ -219,14 +219,22 @@ function Library:AddESP(Parameters)
 	Highlight.Parent = HighlightsFolder
 	Library.Highlights[Object] = Highlight
 
-	-- 2D Billboard Text Frame (exact offset sizing to center over 3D point)
-	local TextFrame = Instance.new("Frame")
-	TextFrame.Visible = false
-	TextFrame.Name = Library:GenerateRandomString()
-	TextFrame.Size = UDim2.new(0, 200, 0, 40)
-	TextFrame.BackgroundTransparency = 1
-	TextFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	TextFrame.Parent = BillboardsFolder
+	-- 3D BillboardGui (hardware-accelerated, locked directly to object mesh)
+	local TargetPart = Object
+	if Object:IsA("Model") then
+		TargetPart = Object.PrimaryPart or Object:FindFirstChildWhichIsA("BasePart") or Object
+	end
+
+	local Billboard = Instance.new("BillboardGui")
+	Billboard.Visible = false
+	Billboard.Name = Library:GenerateRandomString()
+	Billboard.AlwaysOnTop = true
+	Billboard.Size = UDim2.new(0, 200, 0, 40)
+	Billboard.StudsOffset = Vector3.new(0, 0, 0)
+	Billboard.MaxDistance = 99999
+	Billboard.ResetOnSpawn = false
+	Billboard.Adornee = TargetPart
+	Billboard.Parent = BillboardsFolder
 
 	local TextLabel = Instance.new("TextLabel")
 	TextLabel.Name = Library:GenerateRandomString()
@@ -241,9 +249,9 @@ function Library:AddESP(Parameters)
 	TextLabel.TextYAlignment = Enum.TextYAlignment.Center
 	TextLabel.RichText = true
 	TextLabel.TextColor3 = Parameters.Color or Color3.fromRGB(255, 255, 255)
-	TextLabel.Parent = TextFrame
+	TextLabel.Parent = Billboard
 
-	Library.Frames[Object] = TextFrame
+	Library.Frames[Object] = Billboard
 	Library.Labels[Object] = TextLabel
 	Library.ColorTable[Object] = Parameters.Color or Color3.fromRGB(255, 255, 255)
 	Library.TextTable[Object] = Parameters.Text or ""
@@ -469,8 +477,18 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 		if not Object or not Object.Parent then
 			Library:RemoveESP(Object)
 		elseif Library.ElementsEnabled[Object] == true then
-			local ObjectPos = Object:GetPivot().Position
-			local ScreenPoint, OnScreen = Camera:WorldToViewportPoint(ObjectPos)
+			local TargetPart = Object
+			local ObjectPos
+			if Object:IsA("BasePart") then
+				ObjectPos = Object.Position
+			elseif Object:IsA("Model") then
+				TargetPart = Object.PrimaryPart or Object:FindFirstChildWhichIsA("BasePart") or Object
+				ObjectPos = TargetPart:IsA("BasePart") and TargetPart.Position or Object:GetPivot().Position
+			else
+				ObjectPos = Object:GetPivot().Position
+			end
+
+			local ScreenPoint, OnScreen = Camera:WorldToScreenPoint(ObjectPos)
 			local IsVisibleOnScreen = OnScreen and ScreenPoint.Z > 0
 
 			local Frame = Library.Frames[Object]
@@ -478,6 +496,11 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 			local CachedHighlight = Library.Highlights[Object]
 			local LineData = Library.Lines[Object]
 			local ActiveColor = Library.Rainbow and RainbowState.Color or (Library.ColorTable[Object] or Color3.fromRGB(255, 255, 255))
+
+			-- Keep Billboard Adornee targeted on physical part if loaded dynamically
+			if Frame and Frame.Adornee ~= TargetPart then
+				Frame.Adornee = TargetPart
+			end
 
 			-- Only update highlight color dynamically if Rainbow mode is active (avoids dirtying mesh buffers every frame)
 			if Library.Rainbow and CachedHighlight and CachedHighlight.Parent then
@@ -487,14 +510,18 @@ RenderConnection = RunService.RenderStepped:Connect(function(Delta)
 				end
 			end
 
-			-- Update 2D Billboard Label (properly positioned and centered)
+			-- Update 3D Billboard Label (hardware-accelerated, locked directly to object mesh)
 			if Frame and Label then
-				Frame.Visible = IsVisibleOnScreen
+				Frame.Enabled = IsVisibleOnScreen
 				if IsVisibleOnScreen then
-					Frame.Position = UDim2.new(0, ScreenPoint.X, 0, ScreenPoint.Y)
 					if Library.ShowDistance then
 						local Distance = math.floor((CamPos - ObjectPos).Magnitude)
 						Label.Text = (Library.TextTable[Object] or "") .. "\n" .. '<font size="' .. math.round(Library.TextSize * Library.DistanceSizeRatio) .. '">[' .. Distance .. ']</font>'
+					else
+						Label.Text = Library.TextTable[Object] or ""
+					end
+					if Library.Rainbow then
+						Label.TextColor3 = ActiveColor
 					end
 				end
 			end
