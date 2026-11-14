@@ -144,19 +144,53 @@ Groupboxes.Rank:AddDivider()
 Groupboxes.Rank:AddButton({
     Text = "Claim All Rank Rewards Now",
     Func = function()
-        if Network and Network:FindFirstChild("Ranks_ClaimAll") then
-            Network.Ranks_ClaimAll:FireServer()
-            Library:Notify("Claimed all rank rewards!", 3)
+        if Network then
+            if Network:FindFirstChild("Ranks_ClaimAll") then
+                pcall(function() Network.Ranks_ClaimAll:FireServer() end)
+            end
+            if Network:FindFirstChild("Ranks_ClaimReward") then
+                for i = 1, 25 do
+                    pcall(function() Network.Ranks_ClaimReward:FireServer(i) end)
+                end
+            end
+            local giftRem = Network:FindFirstChild("Redeem Free Gift")
+            if giftRem then
+                for i = 1, 12 do
+                    pcall(function() giftRem:InvokeServer(i) end)
+                end
+            end
         end
+        Library:Notify("Claimed all rank track rewards & stars!", 4)
     end
 })
 
 Groupboxes.Rank:AddButton({
     Text = "Trigger Rank Up Now",
     Func = function()
+        local curStars = 0
+        local neededStars = 25
+        pcall(function()
+            local save = require(ReplicatedStorage.Library.Client.Save).Get()
+            curStars = save.RankStars or 0
+            local rUtil = require(ReplicatedStorage.Library.Util.RanksUtil)
+            local id = rUtil.RankIDFromNumber(save.Rank or 2)
+            local dir = require(ReplicatedStorage.Library.Directory)
+            local rData = dir.Ranks[id]
+            if rData and rData.Rewards then
+                local s = 0
+                for _, rw in ipairs(rData.Rewards) do s = s + (rw.StarsRequired or 0) end
+                neededStars = s
+            end
+        end)
+
         if Network and Network:FindFirstChild("Ranks_RankUp") then
             Network.Ranks_RankUp:FireServer()
-            Library:Notify("Fired Rank Up request!", 3)
+        end
+
+        if curStars >= neededStars then
+            Library:Notify("Rank Up request sent! (" .. curStars .. "/" .. neededStars .. " stars)", 4)
+        else
+            Library:Notify("Need " .. (neededStars - curStars) .. " more stars for next Rank! (" .. curStars .. "/" .. neededStars .. ")", 4)
         end
     end
 })
@@ -502,6 +536,11 @@ task.spawn(function()
         if Toggles.AutoClaimRank and Toggles.AutoClaimRank.Value and Network then
             if Network:FindFirstChild("Ranks_ClaimAll") then
                 pcall(function() Network.Ranks_ClaimAll:FireServer() end)
+            end
+            if Network:FindFirstChild("Ranks_ClaimReward") then
+                for i = 1, 20 do
+                    pcall(function() Network.Ranks_ClaimReward:FireServer(i) end)
+                end
             end
             if Network:FindFirstChild("Ranks_RankUp") then
                 pcall(function() Network.Ranks_RankUp:FireServer() end)
