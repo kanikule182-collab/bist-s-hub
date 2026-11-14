@@ -1,3 +1,12 @@
+if GeminiHub and GeminiHub.DoorsUnload then
+	pcall(GeminiHub.DoorsUnload)
+	GeminiHub.DoorsUnload = nil
+end
+if getgenv and getgenv().DoorsMainUnload then
+	pcall(getgenv().DoorsMainUnload)
+	getgenv().DoorsMainUnload = nil
+end
+
 local LoadStart = tick()
 GeminiHub.SavePath = "Doors/Game"
 
@@ -5310,27 +5319,27 @@ task.spawn(function()
 		for _, child in ipairs(noiseRep:GetChildren()) do
 			handleNoiseEntry(child)
 		end
-		noiseRep.ChildAdded:Connect(function(child)
+		table.insert(Connections, noiseRep.ChildAdded:Connect(function(child)
 			if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
 				handleNoiseEntry(child)
 			end
-		end)
+		end))
 	end
 
-	Services.ReplicatedStorage.ChildAdded:Connect(function(child)
+	table.insert(Connections, Services.ReplicatedStorage.ChildAdded:Connect(function(child)
 		if child.Name == "NoiseReplication" then
 			for _, sub in ipairs(child:GetChildren()) do
 				handleNoiseEntry(sub)
 			end
-			child.ChildAdded:Connect(function(subChild)
+			table.insert(Connections, child.ChildAdded:Connect(function(subChild)
 				if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
 					handleNoiseEntry(subChild)
 				end
-			end)
+			end))
 		end
-	end)
+	end))
 
-	CurrentRooms.DescendantAdded:Connect(function(desc)
+	table.insert(Connections, CurrentRooms.DescendantAdded:Connect(function(desc)
 		local dName = desc.Name
 		if dName == "TV" or dName == "Television" or dName == "NoiseTV" or dName == "TV_Stand" or dName == "ShoppingCart" or desc:GetAttribute("LoadModule") == "StairwellTV" or desc:GetAttribute("LoadModule") == "ShoppingCart" then
 			if desc:IsA("Model") or (desc:IsA("BasePart") and not desc:IsDescendantOf(Character)) then
@@ -5451,7 +5460,7 @@ task.spawn(function()
 		end
 	end
 
-	Services.Workspace.ChildAdded:Connect(function(child)
+	table.insert(Connections, Services.Workspace.ChildAdded:Connect(function(child)
 		if child.Name == "Drones" or child.Name:find("Drone") then
 			handleDrone(child)
 		elseif child.Name == "Alma" then
@@ -5459,9 +5468,9 @@ task.spawn(function()
 				Functions.AddESP({ Object = child, Text = "Alma [DON'T LOOK!]", Color = Color3.fromRGB(255, 60, 60) }, true)
 			end
 		end
-	end)
+	end))
 
-	CurrentRooms.DescendantAdded:Connect(function(desc)
+	table.insert(Connections, CurrentRooms.DescendantAdded:Connect(function(desc)
 		local dName = desc.Name
 		if dName == "ArchivesTerminal" or desc:FindFirstChild("TerminalRemote") then
 			if Toggles.ArchivesItemESP and Toggles.ArchivesItemESP.Value then
@@ -6131,7 +6140,7 @@ if LocalPlayer.Character then
 	task.spawn(function() Functions.HandleCharacter(LocalPlayer.Character) end)
 end
 
-LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
+Connections.MainCharConn = LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
 	if Connections.MainHandler then
 		Connections.MainHandler:Disconnect()
 		Connections.MainHandler = nil
@@ -6140,7 +6149,10 @@ LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
 	Functions.HandleCharacter(NewCharacter)
 end)
 
-Library:OnUnload(function()
+local function DoFullUnload()
+	if Globals.DoorsUnloaded then return end
+	Globals.DoorsUnloaded = true
+
 	for Key, Connection in Connections do
 		if type(Key) == "string" then
 			pcall(function() Connection:Disconnect() end)
@@ -6148,6 +6160,21 @@ Library:OnUnload(function()
 			pcall(function() Key:Disconnect() end)
 			pcall(function() Connection:Disconnect() end)
 		end
+	end
+	table.clear(Connections)
+
+	-- Unhook metamethods to prevent hook stacking and memory leaks
+	if MainHook and GeminiHub and GeminiHub.Environment and GeminiHub.Environment.hookmetamethod then
+		pcall(function()
+			GeminiHub.Environment.hookmetamethod(game, "__namecall", MainHook)
+		end)
+		MainHook = nil
+	end
+	if OtherHook and GeminiHub and GeminiHub.Environment and GeminiHub.Environment.hookmetamethod then
+		pcall(function()
+			GeminiHub.Environment.hookmetamethod(game, "__index", OtherHook)
+		end)
+		OtherHook = nil
 	end
 
 	for _, Object in Objects.Entities do
@@ -6172,14 +6199,14 @@ Library:OnUnload(function()
 		end
 	end
 
-	for _, Object in Objects.SeekBridges do Object:Destroy() end
+	for _, Object in Objects.SeekBridges do pcall(function() Object:Destroy() end) end
 
 	for _, Fog in Globals.FogInstances do
-		Fog.Density = Fog:GetAttribute("Density_Old")
+		pcall(function() Fog.Density = Fog:GetAttribute("Density_Old") end)
 	end
-	Services.Lighting.FogEnd = Globals.OldFog
+	pcall(function() Services.Lighting.FogEnd = Globals.OldFog end)
 
-	local Vignette = Globals.MainUI:FindFirstChild("HideVignette") or Globals.MainUI.MainFrame:FindFirstChild("HideVignette")
+	local Vignette = Globals.MainUI and (Globals.MainUI:FindFirstChild("HideVignette") or (Globals.MainUI.MainFrame and Globals.MainUI.MainFrame:FindFirstChild("HideVignette")))
 	if Vignette then Vignette.Image = "rbxassetid://6100076320" end
 
 	local ModuleRestores = {
@@ -6190,60 +6217,72 @@ Library:OnUnload(function()
 		if Modules[Key] then Modules[Key].Name = OriginalName end
 	end
 
-	FakeEvents.Screech:Destroy()
-	FakeEvents.Screech_Real.Parent = RemotesFolder
-	FakeEvents.Shade:Destroy()
-	FakeEvents.Shade_Real.Parent = RemotesFolder
+	pcall(function()
+		if FakeEvents.Screech then FakeEvents.Screech:Destroy() end
+		if FakeEvents.Screech_Real then FakeEvents.Screech_Real.Parent = RemotesFolder end
+		if FakeEvents.Shade then FakeEvents.Shade:Destroy() end
+		if FakeEvents.Shade_Real then FakeEvents.Shade_Real.Parent = RemotesFolder end
+		if FakeEvents.A90 then FakeEvents.A90:Destroy() end
+		if FakeEvents.A90_Real then FakeEvents.A90_Real.Parent = RemotesFolder end
+		if FakeEvents.Surge then FakeEvents.Surge:Destroy() end
+		if FakeEvents.Surge_Real then FakeEvents.Surge_Real.Parent = RemotesFolder end
+	end)
 
-	if FakeEvents.A90_Real then
-		FakeEvents.A90:Destroy()
-		FakeEvents.A90_Real.Parent = RemotesFolder
-	end
-	if FakeEvents.Surge_Real then
-		FakeEvents.Surge:Destroy()
-		FakeEvents.Surge_Real.Parent = RemotesFolder
-	end
+	pcall(function() Globals.SeekNodesFolder:Destroy() end)
+	pcall(function() Globals.RoomsNodesFolder:Destroy() end)
+	pcall(function() Globals.ManipulateBody:Destroy() end)
 
-	Globals.SeekNodesFolder:Destroy()
-	Globals.RoomsNodesFolder:Destroy()
-	Globals.ManipulateBody:Destroy()
-
-	local OldAmbient = CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom"))):GetAttribute("Ambient")
-	Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = OldAmbient }):Play()
+	pcall(function()
+		local cur = CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom")))
+		local OldAmbient = cur and cur:GetAttribute("Ambient")
+		if OldAmbient then
+			Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = OldAmbient }):Play()
+		end
+	end)
 
 	for _, Prompt in Objects.Prompts do
 		if FakePrompts[Prompt] then
-			FakePrompts[Prompt].Parent = Prompt.Parent
-			Prompt:Destroy()
+			pcall(function()
+				FakePrompts[Prompt].Parent = Prompt.Parent
+				Prompt:Destroy()
+			end)
 		end
-		if Prompt.Parent then
-			Prompt.HoldDuration = Prompt:GetAttribute("HoldDuration_Old") or Prompt.HoldDuration
-			Prompt.RequiresLineOfSight = Prompt:GetAttribute("RequiresLineOfSight_Old") or Prompt.RequiresLineOfSight
-			Prompt.MaxActivationDistance = Prompt:GetAttribute("MaxActivationDistance_Old") or Prompt.MaxActivationDistance
+		if Prompt and Prompt.Parent then
+			pcall(function()
+				Prompt.HoldDuration = Prompt:GetAttribute("HoldDuration_Old") or Prompt.HoldDuration
+				Prompt.RequiresLineOfSight = Prompt:GetAttribute("RequiresLineOfSight_Old") or Prompt.RequiresLineOfSight
+				Prompt.MaxActivationDistance = Prompt:GetAttribute("MaxActivationDistance_Old") or Prompt.MaxActivationDistance
+			end)
 		end
 	end
 
-	Character:SetAttribute("CanJump",  OldJump)
-	Character:SetAttribute("CanSlide", OldSlide)
+	if Character then
+		Character:SetAttribute("CanJump",  OldJump)
+		Character:SetAttribute("CanSlide", OldSlide)
+	end
 
 	for _, Object in Services.Workspace:GetDescendants() do
 		task.spawn(function() Functions.RemoveESP(Object) end)
 	end
 
-	Humanoid.WalkSpeed  = Functions.GetCurrentSpeed()
-	Humanoid.JumpPower  = 5
-	Humanoid.HipHeight  = 2.367
+	if Humanoid then
+		Humanoid.WalkSpeed  = Functions.GetCurrentSpeed()
+		Humanoid.JumpPower  = 5
+		Humanoid.HipHeight  = 2.367
+	end
 
 	local BaseY = 0.18
-	Collision.Position          = RootPart.Position + Vector3.new(0, BaseY, 0)
-	CollisionPart.Position      = RootPart.Position + Vector3.new(0, BaseY, 0)
-	CollisionPartClone.Position = RootPart.Position + Vector3.new(0, BaseY, 0)
-
-	if Character:FindFirstChild("LowerTorso") and Character.LowerTorso:FindFirstChild("Root") and Globals.OriginalC1 then
-		pcall(function() Character.LowerTorso.Root.C1 = Globals.OriginalC1 end)
+	if RootPart then
+		if Collision then Collision.Position = RootPart.Position + Vector3.new(0, BaseY, 0) end
+		if CollisionPart then CollisionPart.Position = RootPart.Position + Vector3.new(0, BaseY, 0) end
+		if CollisionPartClone and CollisionPartClone.Parent then CollisionPartClone.Position = RootPart.Position + Vector3.new(0, BaseY, 0) end
+		if Collision and Collision:FindFirstChild("CollisionCrouch") then
+			Collision.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, -0.982, 0)
+		end
 	end
-	if Collision:FindFirstChild("CollisionCrouch") then
-		Collision.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, -0.982, 0)
+
+	if Character and Character:FindFirstChild("LowerTorso") and Character.LowerTorso:FindFirstChild("Root") and Globals.OriginalC1 then
+		pcall(function() Character.LowerTorso.Root.C1 = Globals.OriginalC1 end)
 	end
 
 	pcall(function()
@@ -6253,9 +6292,11 @@ Library:OnUnload(function()
 			h.BistsHub_FloatToggle:Destroy()
 		end
 	end)
-	CollisionClone:Destroy()
-	CollisionPartClone:Destroy()
-	GeminiHub.ESPLibrary:Unload()
+	pcall(function() CollisionClone:Destroy() end)
+	pcall(function() CollisionPartClone:Destroy() end)
+	if GeminiHub and GeminiHub.ESPLibrary then
+		pcall(function() GeminiHub.ESPLibrary:Unload() end)
+	end
 
 	if Main_Game then
 		Main_Game.fovtarget   = 70
@@ -6264,12 +6305,16 @@ Library:OnUnload(function()
 	end
 
 	if Globals.OriginalGetMoveVector then 
-		local Controls = require(LocalPlayer.PlayerScripts.PlayerModule):GetControls()
-		Controls.GetMoveVector = Globals.OriginalGetMoveVector
+		pcall(function()
+			local Controls = require(LocalPlayer.PlayerScripts.PlayerModule):GetControls()
+			Controls.GetMoveVector = Globals.OriginalGetMoveVector
+		end)
 	end
+end
 
-	getgenv().GeminiHub = nil
-end)
+Library:OnUnload(DoFullUnload)
+GeminiHub.DoorsUnload = DoFullUnload
+if getgenv then getgenv().DoorsMainUnload = DoFullUnload end
 
 while not Globals.MainUI do task.wait() end
 GeminiHub.Interface.ApplySettingsTab(Window)
