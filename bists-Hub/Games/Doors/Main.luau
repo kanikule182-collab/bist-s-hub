@@ -1293,46 +1293,71 @@ Globals.PromptContainer.Parent = GetHiddenContainer()
 
 local ESPBlacklist = {}
 
+local function GetObjectRoom(Object)
+	if not Object or not Object.Parent then return nil end
+	local r = Object:GetAttribute("ParentRoom")
+	if r then return tonumber(r) end
+	local curr = Object
+	while curr and curr.Parent and curr.Parent.Name ~= "CurrentRooms" and curr.Parent ~= workspace do
+		curr = curr.Parent
+	end
+	if curr and tonumber(curr.Name) then
+		local num = tonumber(curr.Name)
+		Object:SetAttribute("ParentRoom", num)
+		return num
+	end
+	return nil
+end
+
 Functions.AddESP = function(ESPOptions, RoomBased)
 	local Object = ESPOptions.Object
+	if not Object then return end
 
 	if table.find(ESPBlacklist, Object) then
 		return
 	end
 
+	if ESPConnections[Object] then
+		ESPConnections[Object]:Disconnect()
+		local Pos = table.find(Connections, ESPConnections[Object])
+		if Pos then table.remove(Connections, Pos) end
+		ESPConnections[Object] = nil
+	end
+
 	if RoomBased then
-		local CurrentRoom = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
-		local ObjectRoom = tonumber(Object:GetAttribute("ParentRoom"))
+		local function UpdateRoomCheck()
+			local CurrentRoom = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+			local ObjectRoom = GetObjectRoom(Object)
 
-		if ObjectRoom == CurrentRoom or (table.find(Objects.Doors, Object) and ObjectRoom == CurrentRoom + 1) then
-			GeminiHub.ESPLibrary:AddESP(ESPOptions)
-		end
-
-		local RoomConnection = LocalPlayer:GetAttributeChangedSignal("CurrentRoom"):Connect(function()
-			if GeminiHub.ESPLibrary.ColorTable[Object] then
-				ESPOptions.Color = GeminiHub.ESPLibrary.ColorTable[Object]
-			end
-
-			local NewCurrentRoom = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
-			local ObjRoom = tonumber(Object:GetAttribute("ParentRoom"))
-
-			if ObjRoom == NewCurrentRoom or (table.find(Objects.Doors, Object) and ObjRoom == NewCurrentRoom + 1) then
+			if not CurrentRoom or not ObjectRoom or ObjectRoom == CurrentRoom or (table.find(Objects.Doors, Object) and ObjectRoom == CurrentRoom + 1) then
 				GeminiHub.ESPLibrary:AddESP(ESPOptions)
 			else
 				GeminiHub.ESPLibrary:RemoveESP(Object)
 			end
+		end
+
+		UpdateRoomCheck()
+
+		local RoomConnection = LocalPlayer:GetAttributeChangedSignal("CurrentRoom"):Connect(function()
+			if GeminiHub.ESPLibrary and GeminiHub.ESPLibrary.ColorTable[Object] then
+				ESPOptions.Color = GeminiHub.ESPLibrary.ColorTable[Object]
+			end
+			UpdateRoomCheck()
 		end)
 
 		table.insert(Connections, RoomConnection)
 		ESPConnections[Object] = RoomConnection
 
 		Object.Destroying:Once(function()
-			RoomConnection:Disconnect()
-			if GeminiHub then
+			if ESPConnections[Object] == RoomConnection then
+				RoomConnection:Disconnect()
+				ESPConnections[Object] = nil
+				local Pos = table.find(Connections, RoomConnection)
+				if Pos then table.remove(Connections, Pos) end
+			end
+			if GeminiHub and GeminiHub.ESPLibrary then
 				GeminiHub.ESPLibrary:RemoveESP(Object)
 			end
-			local Pos = table.find(Connections, RoomConnection)
-			if Pos then table.remove(Connections, Pos) end
 		end)
 	else
 		GeminiHub.ESPLibrary:AddESP(ESPOptions)
