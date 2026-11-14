@@ -1490,8 +1490,8 @@ Functions.GetRandomCode = function()
 end
 
 local Window = Library:CreateWindow({
-	Title = "Bist's Hub",
-	Footer = "Bist's Hub • DOORS Edition",
+	Title = "Open Hub",
+	Footer = "Open Hub • DOORS Edition",
 	NotifySide = "Right",
 	ShowCustomCursor = false,
 	AutoShow = true,
