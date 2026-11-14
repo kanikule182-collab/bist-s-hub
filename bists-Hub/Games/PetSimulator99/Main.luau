@@ -144,6 +144,9 @@ Groupboxes.Rank:AddDivider()
 Groupboxes.Rank:AddButton({
     Text = "Claim All Rank Rewards Now",
     Func = function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+
         if Network then
             if Network:FindFirstChild("Ranks_ClaimAll") then
                 pcall(function() Network.Ranks_ClaimAll:FireServer() end)
@@ -160,13 +163,16 @@ Groupboxes.Rank:AddButton({
                 end
             end
         end
-        Library:Notify("Claimed all rank track rewards & stars!", 4)
+        pcall(function() Library:Notify("Claimed all rank track rewards & stars!", 4) end)
     end
 })
 
 Groupboxes.Rank:AddButton({
     Text = "Trigger Rank Up Now",
     Func = function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+
         local curStars = 0
         local neededStars = 25
         pcall(function()
@@ -187,11 +193,13 @@ Groupboxes.Rank:AddButton({
             Network.Ranks_RankUp:FireServer()
         end
 
-        if curStars >= neededStars then
-            Library:Notify("Rank Up request sent! (" .. curStars .. "/" .. neededStars .. " stars)", 4)
-        else
-            Library:Notify("Need " .. (neededStars - curStars) .. " more stars for next Rank! (" .. curStars .. "/" .. neededStars .. ")", 4)
-        end
+        pcall(function()
+            if curStars >= neededStars then
+                Library:Notify("Rank Up request sent! (" .. curStars .. "/" .. neededStars .. " stars)", 4)
+            else
+                Library:Notify("Need " .. (neededStars - curStars) .. " more stars for next Rank! (" .. curStars .. "/" .. neededStars .. ")", 4)
+            end
+        end)
     end
 })
 
@@ -199,6 +207,9 @@ Groupboxes.Farm:AddButton({
     Text = "⚡ Моментально сломать всё (Nuke Area)",
     Tooltip = "Instantly deals massive damage to all breakables in your zone and magnets all orbs & loot.",
     Func = function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+
         local b = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
         if not b then return end
         local remote = Network and Network:FindFirstChild("Breakables_PlayerDealDamage")
@@ -234,7 +245,7 @@ Groupboxes.Farm:AddButton({
             end
         end
 
-        Library:Notify("Shattered " .. count .. " breakables & collected all loot!", 3)
+        pcall(function() Library:Notify("Shattered " .. count .. " breakables & collected all loot!", 3) end)
     end
 })
 
