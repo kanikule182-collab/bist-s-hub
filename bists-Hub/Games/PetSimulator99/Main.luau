@@ -461,16 +461,30 @@ task.spawn(function()
     end
 end)
 
+local function SafeSetText(label, text)
+    if not label then return end
+    pcall(function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+        if label.SetText then
+            label:SetText(text)
+        elseif label.Text ~= nil then
+            label.Text = text
+        end
+    end)
+end
+
 local LastHatchTick = 0
 
 task.spawn(function()
+    if setthreadidentity then setthreadidentity(8)
+    elseif setidentity then setidentity(8) end
+
     while Running do
         task.wait(0.4)
         local goals, rankNum, starsNum = GetRealGoals()
 
-        if QuestLabels.RankInfo then
-            QuestLabels.RankInfo:SetText("Rank: " .. tostring(rankNum) .. " | Stars: " .. tostring(starsNum))
-        end
+        SafeSetText(QuestLabels.RankInfo, "Rank: " .. tostring(rankNum) .. " | Stars: " .. tostring(starsNum))
 
         for i = 1, 3 do
             local g = goals[i]
@@ -478,9 +492,9 @@ task.spawn(function()
             if label then
                 if g then
                     local desc = (g.BreakableType and ("Break " .. g.BreakableType)) or (g.Type == 20 and "Hatch Best Eggs") or ("Type " .. tostring(g.Type))
-                    label:SetText("Goal " .. i .. ": " .. desc .. " (" .. g.Progress .. "/" .. g.Amount .. ") ⭐" .. g.Stars)
+                    SafeSetText(label, "Goal " .. i .. ": " .. desc .. " (" .. g.Progress .. "/" .. g.Amount .. ") ⭐" .. g.Stars)
                 else
-                    label:SetText("Goal " .. i .. ": Completed")
+                    SafeSetText(label, "Goal " .. i .. ": Completed")
                 end
             end
         end
@@ -502,7 +516,7 @@ task.spawn(function()
                     -- Check if it's an Egg hatching goal (Type == 20)
                     if g.Type == 20 then
                         local bestName, bestNum = GetBestUnlockedEgg()
-                        StatusLabel:SetText("Status: Hatching " .. bestName .. " (#" .. bestNum .. ")")
+                        SafeSetText(StatusLabel, "Status: Hatching " .. bestName .. " (#" .. bestNum .. ")")
                         local hatchDelay = (Options.HatchDelaySlider and Options.HatchDelaySlider.Value) or 2.5
                         if tick() - LastHatchTick >= hatchDelay then
                             LastHatchTick = tick()
@@ -511,7 +525,7 @@ task.spawn(function()
                         handled = true
                         break
                     elseif g.BreakableType == "Safe" then
-                        StatusLabel:SetText("Status: Crushing Safes (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        SafeSetText(StatusLabel, "Status: Crushing Safes (" .. g.Progress .. "/" .. g.Amount .. ")")
                         local targets = FindBreakablesByFilter("safe", 6)
                         if #targets > 0 then
                             for _, t in ipairs(targets) do
@@ -522,7 +536,7 @@ task.spawn(function()
                             break
                         end
                     elseif g.BreakableType == "Present" then
-                        StatusLabel:SetText("Status: Crushing Presents (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        SafeSetText(StatusLabel, "Status: Crushing Presents (" .. g.Progress .. "/" .. g.Amount .. ")")
                         local targets = FindBreakablesByFilter("present", 6)
                         if #targets > 0 then
                             for _, t in ipairs(targets) do
@@ -533,7 +547,7 @@ task.spawn(function()
                             break
                         end
                     elseif g.Type == 9 then
-                        StatusLabel:SetText("Status: Crushing Diamonds (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        SafeSetText(StatusLabel, "Status: Crushing Diamonds (" .. g.Progress .. "/" .. g.Amount .. ")")
                         local targets = FindBreakablesByFilter("diamond", 6)
                         if #targets > 0 then
                             for _, t in ipairs(targets) do
@@ -544,7 +558,7 @@ task.spawn(function()
                             break
                         end
                     elseif g.BreakableType == "Coin" or g.Type == 1 then
-                        StatusLabel:SetText("Status: Crushing Coins (" .. g.Progress .. "/" .. g.Amount .. ")")
+                        SafeSetText(StatusLabel, "Status: Crushing Coins (" .. g.Progress .. "/" .. g.Amount .. ")")
                         local targets = FindBreakablesByFilter("coin", 8)
                         if #targets > 0 then
                             for _, t in ipairs(targets) do
@@ -559,7 +573,7 @@ task.spawn(function()
             end
 
             if not handled then
-                StatusLabel:SetText("Status: AoE Farming objects...")
+                SafeSetText(StatusLabel, "Status: AoE Farming objects...")
                 local targets = FindBreakablesByFilter("any", 10)
                 for _, t in ipairs(targets) do
                     local uid = t:GetAttribute("BreakableUID") or t.Name
@@ -567,7 +581,7 @@ task.spawn(function()
                 end
             end
         else
-            StatusLabel:SetText("Status: Auto Rank Idle")
+            SafeSetText(StatusLabel, "Status: Auto Rank Idle")
         end
     end
 end)
