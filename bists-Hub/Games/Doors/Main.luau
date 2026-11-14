@@ -3501,18 +3501,20 @@ Groupboxes.Presets_Tips:AddLabel("• <b>Immortal God:</b> Complete entity invul
 Groupboxes.Presets_Tips:AddLabel("• <b>Toggle Menu:</b> Press [RightShift] or [Insert].", true)
 Groupboxes.Presets_Tips:AddLabel("• <b>Toggle Menu:</b> Press [RightShift] or [Insert] to open/close.", true)
 
-Toggles.KnobFarm:OnChanged(function(Value)
-    if Value then
-        Functions.Notify({Title = "Please collect some gold to earn knobs.", Body = "Click 'Start Knob Farm' when you're ready."})
-	else
-		Globals.KnobFarmStarted = false
-    end
-end)
+if Toggles.KnobFarm then
+	Toggles.KnobFarm:OnChanged(function(Value)
+		if Value then
+			Functions.Notify({Title = "Please collect some gold to earn knobs.", Body = "Click 'Start Knob Farm' when you're ready."})
+		else
+			Globals.KnobFarmStarted = false
+		end
+	end)
+end
 
 Globals.KnobFarmActive = false
 Globals.KnobFarmStarted = false
 Connections.KnobFarm = Services.RunService.Heartbeat:Connect(function()
-	if Toggles.KnobFarm.Value and Globals.KnobFarmStarted then
+	if Toggles.KnobFarm and Toggles.KnobFarm.Value and Globals.KnobFarmStarted then
 		if not Globals.KnobFarmActive then
 			Globals.KnobFarmActive = true
 			if Functions.CheckCompatability({"replicatesignal"}) then
