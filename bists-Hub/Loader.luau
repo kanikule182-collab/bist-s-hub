@@ -210,6 +210,7 @@ local GameList = {
     [8737899170] = "PetSimulator99",
     [16498369169] = "PetSimulator99",
     [93869716229773] = "PetSimulator99",
+    [140030158342766] = "PetSimulator99",
 }
 
 local CurrentGame = GameList[game.GameId] or GameList[game.PlaceId]
