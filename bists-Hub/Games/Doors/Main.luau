@@ -970,20 +970,22 @@ Functions.BreakNoiseTV = function(tv, force)
 
 	local dist = RootPart and (RootPart.Position - base.Position).Magnitude or 999
 
-	-- If the player is too far away (> 22 studs) and force is not set, wait until player approaches so server registers prompt push
-	if dist > 22 and not force then
+	-- If the player is way too far (> 60 studs) and force is not set, wait until player is in the stairwell
+	if dist > 60 and not force then
 		return false
 	end
 
 	if root:GetAttribute("GeminiTVBroken") then return true end
 
 	pcall(function()
-		-- If force was requested from far away, briefly bring root closer so server validates proximity
+		-- Roblox server checks distance (<= 7 studs) and requires player to be behind cart in the 'Push' sector.
+		-- Position player directly behind the cart facing forward so server accepts and registers the push!
 		local oldCF = nil
-		if force and dist > 15 and RootPart then
+		if RootPart and dist > 6 then
 			oldCF = RootPart.CFrame
-			pcall(function() RootPart.CFrame = base.CFrame + Vector3.new(0, 3, 0) end)
-			task.wait(0.05)
+			local behindPos = base.Position - base.CFrame.LookVector * 2.5 + Vector3.new(0, 0.5, 0)
+			pcall(function() RootPart.CFrame = CFrame.new(behindPos, base.Position) end)
+			task.wait(0.06)
 		end
 
 		-- 1. Trigger CartPrompt / CartNudgePrompt with full hold duration so server registers legitimate push
@@ -1007,7 +1009,7 @@ Functions.BreakNoiseTV = function(tv, force)
 
 		-- Restore position if spoofed
 		if oldCF and RootPart then
-			task.delay(0.12, function()
+			task.delay(0.18, function()
 				pcall(function() RootPart.CFrame = oldCF end)
 			end)
 		end
