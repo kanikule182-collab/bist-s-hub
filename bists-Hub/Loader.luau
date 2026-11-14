@@ -1,5 +1,5 @@
-if getgenv and (getgenv().BistsHub or getgenv().GeminiHub or getgenv().DoorsMainUnload) then
-    local old = getgenv().BistsHub or getgenv().GeminiHub
+if getgenv and (getgenv().OpenHub or getgenv().BistsHub or getgenv().GeminiHub or getgenv().DoorsMainUnload or getgenv().PS99Unload) then
+    local old = getgenv().OpenHub or getgenv().BistsHub or getgenv().GeminiHub
     if old then
         if old.Unload then
             pcall(function() old:Unload() end)
@@ -14,26 +14,37 @@ if getgenv and (getgenv().BistsHub or getgenv().GeminiHub or getgenv().DoorsMain
         pcall(getgenv().DoorsMainUnload)
         getgenv().DoorsMainUnload = nil
     end
+    if getgenv().PS99Unload then
+        pcall(getgenv().PS99Unload)
+        getgenv().PS99Unload = nil
+    end
+    getgenv().OpenHub = nil
     getgenv().BistsHub = nil
     getgenv().GeminiHub = nil
     getgenv().Abysall = nil
     task.wait(0.15)
 end
 
-local BistsHub = {
+local OpenHub = {
     Legit = true,
-    Name = "Bist's Hub",
-    Version = "1.0.0",
+    Name = "Open Hub",
+    Version = "1.1.0",
 }
-local GeminiHub = BistsHub
+local BistsHub = OpenHub
+local GeminiHub = OpenHub
 
-function BistsHub:Unload()
+function OpenHub:Unload()
     if self.Unloaded then return end
     self.Unloaded = true
 
     if self.DoorsUnload then
         pcall(self.DoorsUnload)
         self.DoorsUnload = nil
+    end
+
+    if self.PS99Unload then
+        pcall(self.PS99Unload)
+        self.PS99Unload = nil
     end
 
     if self.Interface and self.Interface.Library then
@@ -49,7 +60,7 @@ function BistsHub:Unload()
         local h = gethui()
         if h then
             for _, child in ipairs(h:GetChildren()) do
-                if child.Name:find("BistsHub") or child.Name:find("GeminiHub") or child.Name == "BistsHub_FloatToggle" then
+                if child.Name:find("OpenHub") or child.Name:find("BistsHub") or child.Name:find("GeminiHub") or child.Name == "OpenHub_FloatToggle" or child.Name == "BistsHub_FloatToggle" then
                     child:Destroy()
                 end
             end
@@ -58,13 +69,15 @@ function BistsHub:Unload()
 end
 
 if getgenv then
-    getgenv().BistsHub = BistsHub
-    getgenv().GeminiHub = BistsHub
-    getgenv().Abysall = BistsHub
+    getgenv().OpenHub = OpenHub
+    getgenv().BistsHub = OpenHub
+    getgenv().GeminiHub = OpenHub
+    getgenv().Abysall = OpenHub
 end
 
 local function LoadModule(relPath)
     local localPaths = {
+        "Open-Hub/" .. relPath,
         "Bists-Hub/" .. relPath,
         "Gemini-Hub/" .. relPath,
         relPath,
@@ -80,7 +93,7 @@ local function LoadModule(relPath)
                     end
                     local fn, err = loadstring(content, relPath)
                     if fn then return fn() end
-                    warn("[Bist's Hub] Failed to load local module: " .. relPath .. " - " .. tostring(err))
+                    warn("[Open Hub] Failed to load local module: " .. relPath .. " - " .. tostring(err))
                 end
             end
         end
@@ -96,7 +109,9 @@ local function LoadModule(relPath)
         "https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/",
     }
 
-    if getgenv and getgenv().BistsHubBaseUrl then
+    if getgenv and getgenv().OpenHubBaseUrl then
+        table.insert(Repos, 1, getgenv().OpenHubBaseUrl)
+    elseif getgenv and getgenv().BistsHubBaseUrl then
         table.insert(Repos, 1, getgenv().BistsHubBaseUrl)
     end
 
@@ -112,35 +127,35 @@ local function LoadModule(relPath)
             end
             local fn, err = loadstring(remoteContent, relPath)
             if fn then return fn() end
-            warn("[Bist's Hub] Failed to parse remote module from " .. BaseUrl .. ": " .. tostring(err))
+            warn("[Open Hub] Failed to parse remote module from " .. BaseUrl .. ": " .. tostring(err))
         end
     end
 
-    warn("[Bist's Hub Fatal] Unable to load module: " .. tostring(relPath))
+    warn("[Open Hub Fatal] Unable to load module: " .. tostring(relPath))
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Bist's Hub Error",
+            Title = "Open Hub Error",
             Text = "Failed to load: " .. tostring(relPath),
             Duration = 10
         })
     end)
-    error("[Bist's Hub] Unable to load module: " .. relPath)
+    error("[Open Hub] Unable to load module: " .. relPath)
 end
 
-GeminiHub.LoadModule = LoadModule
+OpenHub.LoadModule = LoadModule
 
 local rawEnv = LoadModule("Components/Environment.luau")
-GeminiHub.Environment = setmetatable(rawEnv or {}, {
+OpenHub.Environment = setmetatable(rawEnv or {}, {
     __index = function(_, key)
         return (getgenv and getgenv()[key]) or getfenv(0)[key]
     end
 })
 
-GeminiHub.ESPLibrary = LoadModule("Components/ESP.luau")
+OpenHub.ESPLibrary = LoadModule("Components/ESP.luau")
 
 local function CloneReference(Object)
-    if GeminiHub and GeminiHub.Environment and GeminiHub.Environment.cloneref then
-        return GeminiHub.Environment.cloneref(Object)
+    if OpenHub and OpenHub.Environment and OpenHub.Environment.cloneref then
+        return OpenHub.Environment.cloneref(Object)
     else
         return Object
     end
@@ -152,53 +167,60 @@ local Services = setmetatable({}, {
     end
 })
 
-local g_writefile = writefile or (GeminiHub.Environment and GeminiHub.Environment.writefile)
-local g_readfile = readfile or (GeminiHub.Environment and GeminiHub.Environment.readfile)
-local g_isfile = isfile or (GeminiHub.Environment and GeminiHub.Environment.isfile)
-local g_makefolder = makefolder or (GeminiHub.Environment and GeminiHub.Environment.makefolder)
-local g_isfolder = isfolder or (GeminiHub.Environment and GeminiHub.Environment.isfolder)
+local g_writefile = writefile or (OpenHub.Environment and OpenHub.Environment.writefile)
+local g_readfile = readfile or (OpenHub.Environment and OpenHub.Environment.readfile)
+local g_isfile = isfile or (OpenHub.Environment and OpenHub.Environment.isfile)
+local g_makefolder = makefolder or (OpenHub.Environment and OpenHub.Environment.makefolder)
+local g_isfolder = isfolder or (OpenHub.Environment and OpenHub.Environment.isfolder)
 
 if g_writefile and g_readfile then
     pcall(function()
-        if g_makefolder and g_isfolder and not g_isfolder("GeminiHub") then
-            g_makefolder("GeminiHub")
+        if g_makefolder and g_isfolder and not g_isfolder("OpenHub") then
+            g_makefolder("OpenHub")
         end
 
-        if not (g_isfile and g_isfile("GeminiHub/UserData.json")) then
+        if not (g_isfile and g_isfile("OpenHub/UserData.json")) then
             local Data = {
                 TotalExecutions = 0,
                 UILibrary = "Obsidian"
             }
-            g_writefile("GeminiHub/UserData.json", Services.HttpService:JSONEncode(Data))
+            g_writefile("OpenHub/UserData.json", Services.HttpService:JSONEncode(Data))
         end
 
-        local UserData = g_readfile("GeminiHub/UserData.json")
+        local UserData = g_readfile("OpenHub/UserData.json")
         local Decoded = Services.HttpService:JSONDecode(UserData)
         Decoded.TotalExecutions = (Decoded.TotalExecutions or 0) + 1
         Decoded.UILibrary = Decoded.UILibrary or "Obsidian"
 
-        GeminiHub.TotalExecutions = Decoded.TotalExecutions
-        GeminiHub.UILibrary = Decoded.UILibrary
+        OpenHub.TotalExecutions = Decoded.TotalExecutions
+        OpenHub.UILibrary = Decoded.UILibrary
 
-        g_writefile("GeminiHub/UserData.json", Services.HttpService:JSONEncode(Decoded))
+        g_writefile("OpenHub/UserData.json", Services.HttpService:JSONEncode(Decoded))
     end)
 end
 
-GeminiHub.Interface = LoadModule("Components/Interface.luau")
-GeminiHub.Analytics = LoadModule("Components/Analytics.luau")
+OpenHub.Interface = LoadModule("Components/Interface.luau")
+OpenHub.Analytics = LoadModule("Components/Analytics.luau")
 
 local GameList = {
     [2440500124] = "Doors",
     [6839171747] = "Doors",
     [6516141723] = "Doors",
+    [8737899170] = "PetSimulator99",
+    [16498369169] = "PetSimulator99",
 }
 
 local CurrentGame = GameList[game.GameId] or GameList[game.PlaceId]
 if not CurrentGame then
     pcall(function()
         local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
-        if info and info.Name and info.Name:lower():find("doors") then
-            CurrentGame = "Doors"
+        if info and info.Name then
+            local n = info.Name:lower()
+            if n:find("doors") then
+                CurrentGame = "Doors"
+            elseif n:find("pet simulator 99") or n:find("pet sim 99") or n:find("ps99") then
+                CurrentGame = "PetSimulator99"
+            end
         end
     end)
 end
@@ -206,16 +228,18 @@ end
 local success, err = pcall(function()
     if CurrentGame == "Doors" or game.PlaceId == 6839171747 or game.PlaceId == 6516141723 or game.GameId == 2440500124 then
         LoadModule("Games/Doors/Loader.luau")
+    elseif CurrentGame == "PetSimulator99" or game.PlaceId == 8737899170 or game.PlaceId == 16498369169 or game.GameId == 3317771874 then
+        LoadModule("Games/PetSimulator99/Loader.luau")
     else
         LoadModule("Games/Universal/Loader.luau")
     end
 end)
 
 if not success then
-    warn("[Bist's Hub Error]: " .. tostring(err))
+    warn("[Open Hub Error]: " .. tostring(err))
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Bist's Hub Error",
+            Title = "Open Hub Error",
             Text = tostring(err):sub(1, 100),
             Duration = 10
         })
