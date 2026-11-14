@@ -87,6 +87,180 @@ if getgenv then
     getgenv().PS99Unload = UnloadAll
 end
 
+-- ==============================================================
+-- CORE HELPER FUNCTIONS (Declared first so all callbacks can see them)
+-- ==============================================================
+
+local function GetCharacter()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return char, char:FindFirstChild("HumanoidRootPart"), char:FindFirstChildOfClass("Humanoid")
+end
+
+local function DamageBreakable(uid)
+    if not uid or not Network then return end
+    local remote = Network:FindFirstChild("Breakables_PlayerDealDamage")
+    if remote then
+        remote:FireServer(tostring(uid))
+    end
+end
+
+local function SafeSetText(label, text)
+    if not label then return end
+    pcall(function()
+        if setthreadidentity then setthreadidentity(8)
+        elseif setidentity then setidentity(8) end
+        if label.SetText then
+            label:SetText(text)
+        elseif label.Text ~= nil then
+            label.Text = text
+        end
+    end)
+end
+
+local function GetBestUnlockedEgg()
+    local bestNum = 1
+    local bestName = "Cracked Egg"
+    local bestCap = nil
+
+    pcall(function()
+        local save = require(ReplicatedStorage.Library.Client.Save).Get()
+        if save and save.MaximumAvailableEgg then
+            bestNum = save.MaximumAvailableEgg
+        end
+    end)
+
+    pcall(function()
+        local dir = require(ReplicatedStorage.Library.Directory)
+        if dir and dir.Eggs then
+            for id, egg in pairs(dir.Eggs) do
+                if egg.eggNumber == bestNum then
+                    bestName = tostring(id)
+                    break
+                end
+            end
+        end
+    end)
+
+    local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+    if eggsMain then
+        bestCap = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule")
+    end
+
+    return bestName, bestNum, bestCap
+end
+
+local function GetRealGoals()
+    local goals = {}
+    local rankNum = 1
+    local starsNum = 0
+    pcall(function()
+        local save = require(ReplicatedStorage.Library.Client.Save).Get()
+        if save then
+            rankNum = save.Rank or 1
+            starsNum = save.RankStars or 0
+            if save.Goals then
+                for k, g in pairs(save.Goals) do
+                    table.insert(goals, {
+                        Index = tostring(k),
+                        Type = g.Type,
+                        BreakableType = g.BreakableType,
+                        Amount = g.Amount or 0,
+                        Progress = g.Progress or 0,
+                        Stars = g.Stars or 1
+                    })
+                end
+            end
+        end
+    end)
+    return goals, rankNum, starsNum
+end
+
+local function FindBreakablesByFilter(filter, maxCount)
+    maxCount = maxCount or 1
+    local things = Workspace:FindFirstChild("__THINGS")
+    local breakables = things and things:FindFirstChild("Breakables")
+    if not breakables then return {} end
+
+    local char, root = GetCharacter()
+    local rootPos = root and root.Position or Vector3.zero
+
+    local results = {}
+    for _, item in ipairs(breakables:GetChildren()) do
+        if not (item:IsA("Model") or item:IsA("BasePart")) then
+            continue
+        end
+
+        local id = (item:GetAttribute("BreakableID") or item.Name):lower()
+        local matches = false
+
+        if filter == "diamond" then
+            matches = id:find("diamond") or id:find("gem")
+        elseif filter == "safe" then
+            matches = id:find("safe")
+        elseif filter == "present" then
+            matches = id:find("present")
+        elseif filter == "pinata" then
+            matches = id:find("pinata")
+        elseif filter == "coin" then
+            matches = id:find("coin") or id:find("crate") or id:find("default")
+        elseif filter == "any" then
+            matches = true
+        end
+
+        if matches then
+            local pos = item:GetPivot().Position
+            local d = (pos - rootPos).Magnitude
+            table.insert(results, { item = item, dist = d })
+        end
+    end
+
+    table.sort(results, function(a, b) return a.dist < b.dist end)
+
+    local finalItems = {}
+    for i = 1, math.min(#results, maxCount) do
+        table.insert(finalItems, results[i].item)
+    end
+    return finalItems
+end
+
+local function HatchEgg(eggName, count)
+    if not Network or not Network:FindFirstChild("Eggs_RequestPurchase") then return false end
+    count = math.clamp(count or 1, 1, 3)
+
+    local bestName, bestNum, bestCapsule = GetBestUnlockedEgg()
+    if not eggName or eggName == "Latest Unlocked (Auto)" or eggName == "Best" then
+        eggName = bestName
+    end
+
+    local eggCapsule = (eggName == bestName and bestCapsule) or nil
+    if not eggCapsule then
+        local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+        if eggsMain then
+            eggCapsule = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule") or eggsMain:FindFirstChild("1 - Egg Capsule")
+        end
+    end
+
+    local targetPos = eggCapsule and eggCapsule:GetPivot().Position or Vector3.new(95, 21, -155)
+    local char, root = GetCharacter()
+    if not root then return false end
+
+    -- Only move to capsule if player is not near it
+    if (root.Position - targetPos).Magnitude > 16 then
+        root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 4))
+        task.wait(0.35)
+    end
+
+    local success, res = pcall(function()
+        return Network.Eggs_RequestPurchase:InvokeServer(eggName, count)
+    end)
+
+    return success and res
+end
+
+-- ==============================================================
+-- WINDOW & UI LAYOUT
+-- ==============================================================
+
 local Window = Library:CreateWindow({
     Title = "Open Hub",
     Footer = "Open Hub • Pet Simulator 99",
@@ -113,7 +287,7 @@ local Groupboxes = {}
 Groupboxes.Rank = Tabs.Rank:AddLeftGroupbox("Real Auto Rank")
 Groupboxes.Quests = Tabs.Rank:AddRightGroupbox("Real Goals (Save Data)")
 
-Groupboxes.Farm = Tabs.Farm:AddLeftGroupbox("AoE Farm & Free Gifts")
+Groupboxes.Farm = Tabs.Farm:AddLeftGroupbox("AoE Farm & Nuke")
 Groupboxes.Eggs = Tabs.Farm:AddRightGroupbox("Eggs & Hatching")
 
 Groupboxes.Visuals = Tabs.Visuals:AddLeftGroupbox("ESP")
@@ -131,7 +305,7 @@ local StatusLabel = Groupboxes.Rank:AddLabel("Status: Idle")
 Groupboxes.Rank:AddToggle("AutoRank", {
     Text = "Enable Real Auto Rank",
     Default = true,
-    Tooltip = "Reads real Save.Goals: hatches latest unlocked egg without rollbacks, breaks Safes, Presents, Diamonds, and auto-levels."
+    Tooltip = "Reads real Save.Goals: hatches latest unlocked egg, breaks Safes, Presents, Diamonds, and auto-levels."
 })
 
 Groupboxes.Rank:AddToggle("AutoClaimRank", {
@@ -327,159 +501,9 @@ Groupboxes.Player:AddToggle("InfiniteJump", {
     Default = false,
 })
 
-local function GetCharacter()
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return char, char:FindFirstChild("HumanoidRootPart"), char:FindFirstChildOfClass("Humanoid")
-end
-
-local function DamageBreakable(uid)
-    if not uid or not Network then return end
-    local remote = Network:FindFirstChild("Breakables_PlayerDealDamage")
-    if remote then
-        remote:FireServer(tostring(uid))
-    end
-end
-
-local function GetBestUnlockedEgg()
-    local bestNum = 1
-    local bestName = "Cracked Egg"
-    local bestCap = nil
-
-    pcall(function()
-        local save = require(ReplicatedStorage.Library.Client.Save).Get()
-        if save and save.MaximumAvailableEgg then
-            bestNum = save.MaximumAvailableEgg
-        end
-    end)
-
-    pcall(function()
-        local dir = require(ReplicatedStorage.Library.Directory)
-        if dir and dir.Eggs then
-            for id, egg in pairs(dir.Eggs) do
-                if egg.eggNumber == bestNum then
-                    bestName = tostring(id)
-                    break
-                end
-            end
-        end
-    end)
-
-    local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
-    if eggsMain then
-        bestCap = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule")
-    end
-
-    return bestName, bestNum, bestCap
-end
-
-local function GetRealGoals()
-    local goals = {}
-    local rankNum = 1
-    local starsNum = 0
-    pcall(function()
-        local save = require(ReplicatedStorage.Library.Client.Save).Get()
-        if save then
-            rankNum = save.Rank or 1
-            starsNum = save.RankStars or 0
-            if save.Goals then
-                for k, g in pairs(save.Goals) do
-                    table.insert(goals, {
-                        Index = tostring(k),
-                        Type = g.Type,
-                        BreakableType = g.BreakableType,
-                        Amount = g.Amount or 0,
-                        Progress = g.Progress or 0,
-                        Stars = g.Stars or 1
-                    })
-                end
-            end
-        end
-    end)
-    return goals, rankNum, starsNum
-end
-
-local function FindBreakablesByFilter(filter, maxCount)
-    maxCount = maxCount or 1
-    local things = Workspace:FindFirstChild("__THINGS")
-    local breakables = things and things:FindFirstChild("Breakables")
-    if not breakables then return {} end
-
-    local char, root = GetCharacter()
-    local rootPos = root and root.Position or Vector3.zero
-
-    local results = {}
-    for _, item in ipairs(breakables:GetChildren()) do
-        if not (item:IsA("Model") or item:IsA("BasePart")) then
-            continue
-        end
-
-        local id = (item:GetAttribute("BreakableID") or item.Name):lower()
-        local matches = false
-
-        if filter == "diamond" then
-            matches = id:find("diamond") or id:find("gem")
-        elseif filter == "safe" then
-            matches = id:find("safe")
-        elseif filter == "present" then
-            matches = id:find("present")
-        elseif filter == "pinata" then
-            matches = id:find("pinata")
-        elseif filter == "coin" then
-            matches = id:find("coin") or id:find("crate") or id:find("default")
-        elseif filter == "any" then
-            matches = true
-        end
-
-        if matches then
-            local pos = item:GetPivot().Position
-            local d = (pos - rootPos).Magnitude
-            table.insert(results, { item = item, dist = d })
-        end
-    end
-
-    table.sort(results, function(a, b) return a.dist < b.dist end)
-
-    local finalItems = {}
-    for i = 1, math.min(#results, maxCount) do
-        table.insert(finalItems, results[i].item)
-    end
-    return finalItems
-end
-
-local function HatchEgg(eggName, count)
-    if not Network or not Network:FindFirstChild("Eggs_RequestPurchase") then return false end
-    count = math.clamp(count or 1, 1, 3)
-
-    local bestName, bestNum, bestCapsule = GetBestUnlockedEgg()
-    if not eggName or eggName == "Latest Unlocked (Auto)" or eggName == "Best" then
-        eggName = bestName
-    end
-
-    local eggCapsule = (eggName == bestName and bestCapsule) or nil
-    if not eggCapsule then
-        local eggsMain = Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
-        if eggsMain then
-            eggCapsule = eggsMain:FindFirstChild(bestNum .. " - Egg Capsule") or eggsMain:FindFirstChild("1 - Egg Capsule")
-        end
-    end
-
-    local targetPos = eggCapsule and eggCapsule:GetPivot().Position or Vector3.new(95, 21, -155)
-    local char, root = GetCharacter()
-    if not root then return false end
-
-    -- Only move to capsule if player is not near it
-    if (root.Position - targetPos).Magnitude > 16 then
-        root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 4))
-        task.wait(0.35)
-    end
-
-    local success, res = pcall(function()
-        return Network.Eggs_RequestPurchase:InvokeServer(eggName, count)
-    end)
-
-    -- NO TELEPORT BACK! Player stays at egg to avoid server cancel / rollback!
-    return success and res
-end
+-- ==============================================================
+-- BACKGROUND LOOPS
+-- ==============================================================
 
 task.spawn(function()
     while Running do
@@ -560,19 +584,6 @@ task.spawn(function()
         end
     end
 end)
-
-local function SafeSetText(label, text)
-    if not label then return end
-    pcall(function()
-        if setthreadidentity then setthreadidentity(8)
-        elseif setidentity then setidentity(8) end
-        if label.SetText then
-            label:SetText(text)
-        elseif label.Text ~= nil then
-            label.Text = text
-        end
-    end)
-end
 
 local LastHatchTick = 0
 
@@ -743,5 +754,5 @@ end)
 Hub.Interface.ApplySettingsTab(Window)
 
 pcall(function()
-    Library:Notify("Open Hub Real Auto loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. "s", 5)
+    Library:Notify("Open Hub loaded with Nuke Area & Fixed Buttons in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. "s", 5)
 end)
