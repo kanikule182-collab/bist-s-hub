@@ -16,18 +16,16 @@ return function(Window)
         end
     end
 
-    local Services = setmetatable({}, {
-        __index = function(self, Name)
-            return CloneReference(game:GetService(Name))
-        end
-    end)
+    local function GetService(Name)
+        return CloneReference(game:GetService(Name))
+    end
 
+    local Players = GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
     local Hub = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) or _G.OpenHub or _G.GeminiHub or _G.BistsHub
     local Library = Hub.Interface.Library
     local SaveManager = Hub.Interface.SaveManager
     local ThemeManager = Hub.Interface.ThemeManager
-
-    local LocalPlayer = Services.Players.LocalPlayer
     local InfoTab = Window:AddTab("Info", "user")
 
     local User = InfoTab:AddLeftGroupbox("User Info")
