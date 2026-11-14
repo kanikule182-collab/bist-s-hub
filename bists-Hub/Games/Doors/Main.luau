@@ -952,12 +952,25 @@ Globals.TrackedCreaks = {}
 Functions.BreakNoiseTV = function(tv)
 	if not tv or not tv.Parent then return end
 	local root = tv:IsA("Model") and tv or (tv:FindFirstAncestorOfClass("Model") or tv)
+	if not root or not root.Parent then return end
+	if root == Character or root:IsDescendantOf(Character) or root:FindFirstChildOfClass("Humanoid") then return end
+
+	-- Ensure this is NOT the Noise monster itself! Noise monster must never be flinged or broken like a TV!
+	local rName = root.Name:lower()
+	local hasTVParts = root:FindFirstChild("TVMain", true) or root:FindFirstChild("TVScreen", true) or root:FindFirstChild("CartNudgePrompt", true) or root:FindFirstChild("CartPrompt", true) or root:FindFirstChild("CartReleased", true) or root.Name == "ShoppingCart"
+	if (rName:find("noise") or rName:find("hijack")) and not hasTVParts then
+		return
+	end
+
 	if root:GetAttribute("GeminiTVBroken") then return end
 	root:SetAttribute("GeminiTVBroken", true)
 
 	pcall(function()
-		-- 1. Trigger CartPrompt / push prompts so server registers legitimate push action
-		for _, prompt in ipairs(root:GetDescendants()) do
+		local tvModel = root:FindFirstChild("TVMain", true) and (root:FindFirstChild("TVMain", true).Parent) or root
+		local cartModel = (root.Name == "ShoppingCart" or root:FindFirstChild("CartNudgePrompt", true)) and root or (root:FindFirstAncestor("ShoppingCart") or root)
+
+		-- 1. Trigger CartPrompt / CartNudgePrompt push prompts so server registers legitimate push action
+		for _, prompt in ipairs((cartModel or root):GetDescendants()) do
 			if prompt:IsA("ProximityPrompt") then
 				pcall(function()
 					if fireproximityprompt then
@@ -968,39 +981,30 @@ Functions.BreakNoiseTV = function(tv)
 		end
 
 		-- 2. Fire CartReleased / CartAttached bindables if present
-		local rel = root:FindFirstChild("CartReleased", true)
+		local rel = (cartModel or root):FindFirstChild("CartReleased", true)
 		if rel and rel:IsA("BindableEvent") then
 			pcall(function() rel:Fire() end)
 		end
+		local att = (cartModel or root):FindFirstChild("CartAttached", true)
+		if att and att:IsA("BindableEvent") then
+			pcall(function() att:Fire() end)
+		end
 
-		-- 3. Physically flip and overturn the cart upside down (переворачиваем)
-		pcall(function()
-			local currentPivot = root:GetPivot()
-			local flippedCF = currentPivot * CFrame.Angles(math.pi * 0.9, 0, 0.45) + Vector3.new(0, 1.5, 0)
-			root:PivotTo(flippedCF)
-		end)
-
-		-- 4. Apply strong tumbling angular velocity & downward speed (flipping and rolling down the stairs)
-		for _, part in ipairs(root:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.Anchored = false
-				part.CanTouch = true
-				part.CanCollide = true
-				part.AssemblyAngularVelocity = Vector3.new(25, 10, 25)
-				part.AssemblyLinearVelocity = Vector3.new(0, -60, 0)
+		-- 3. Simulate natural physical roll down the ramp/stairs (NOT voiding into ground)
+		local base = (cartModel or root):FindFirstChild("Base", true) or (cartModel or root):FindFirstChild("Collider", true) or (cartModel or root).PrimaryPart
+		if base and base:IsA("BasePart") then
+			local forward = base.CFrame.LookVector
+			local rollVel = forward * 45 + Vector3.new(0, -12, 0)
+			for _, part in ipairs((cartModel or root):GetDescendants()) do
+				if part:IsA("BasePart") and part.CanCollide then
+					part.AssemblyLinearVelocity = rollVel
+					part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
+				end
 			end
 		end
 
-		-- 5. Fire server trigger event (NoiseTriggerEvent)
-		local nte = root:FindFirstChild("NoiseTriggerEvent", true)
-		if nte and nte:IsA("RemoteEvent") then
-			pcall(function() nte:FireServer() end)
-			pcall(function() nte:FireServer(true) end)
-			pcall(function() nte:FireServer(root) end)
-		end
-
 		-- 4. Simulate impact collision with floor/stairs so server crash detection triggers
-		local collider = root:FindFirstChild("Collider", true) or root:FindFirstChild("Base", true) or root:FindFirstChildWhichIsA("BasePart", true)
+		local collider = (cartModel or root):FindFirstChild("Collider", true) or base
 		local room = root:FindFirstAncestorOfClass("Model") or root.Parent
 		if collider and collider:IsA("BasePart") and room then
 			for _, part in ipairs(room:GetDescendants()) do
@@ -1018,17 +1022,7 @@ Functions.BreakNoiseTV = function(tv)
 			end
 		end
 
-		-- 5. Give cart natural downward impact velocity into the stairs (NOT void)
-		for _, part in ipairs(root:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.Anchored = false
-				part.CanTouch = true
-				part.CanCollide = true
-				part.AssemblyLinearVelocity = Vector3.new(0, -100, 0)
-			end
-		end
-
-		-- 6. Execute game's official StairwellTVDebris client module if available for authentic screen shatter
+		-- 5. Execute game's official StairwellTVDebris client module if available for authentic screen shatter
 		pcall(function()
 			local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
 			if floorRep then
@@ -1036,21 +1030,54 @@ Functions.BreakNoiseTV = function(tv)
 				if cr and cr:FindFirstChild("StairwellTVDebris") then
 					local debrisMod = require(cr.StairwellTVDebris)
 					if typeof(debrisMod) == "function" then
-						debrisMod(nil, root)
+						debrisMod(nil, tvModel or root)
 					end
 				end
 			end
 		end)
 
-		-- 7. Neutralize Noise and Hijack damage hitboxes immediately (Godmode) so player is never harmed
-		for _, r in pairs(CurrentRooms:GetChildren()) do
-			for _, entity in ipairs(r:GetChildren()) do
-				local eName = entity.Name:lower()
-				if eName:find("noise") or eName:find("hijack") then
-					for _, p in ipairs(entity:GetDescendants()) do
-						if p:IsA("BasePart") then
-							p.CanTouch = false
-							p.CanQuery = false
+		-- 6. Direct visual screen shatter fallback (guarantees TV breaks even if module was deferred)
+		pcall(function()
+			local targetTV = tvModel or root
+			local tvScreen = targetTV:FindFirstChild("TVScreen", true)
+			local brokenScreen = targetTV:FindFirstChild("BrokenScreen", true)
+			local staticSnd = targetTV:FindFirstChild("Static", true)
+			local shatterSnd = targetTV:FindFirstChild("Shatter", true)
+
+			if staticSnd and staticSnd:IsA("Sound") then staticSnd:Stop() end
+			if shatterSnd and shatterSnd:IsA("Sound") then shatterSnd:Play() end
+
+			if tvScreen and tvScreen:IsA("BasePart") then
+				tvScreen.Material = Enum.Material.Plastic
+				tvScreen.Transparency = 1
+				local tex = tvScreen:FindFirstChild("StaticTexture", true)
+				if tex then tex.Transparency = 1 end
+				local hl = tvScreen:FindFirstChild("Highlight", true)
+				if hl then hl.Enabled = false end
+				for _, light in ipairs(tvScreen:GetDescendants()) do
+					if light:IsA("Light") then light.Enabled = false end
+				end
+			end
+
+			if brokenScreen and brokenScreen:IsA("BasePart") then
+				brokenScreen.Material = Enum.Material.Glass
+				brokenScreen.Transparency = 0
+				local d = brokenScreen:FindFirstChild("Decal", true)
+				if d then d.Transparency = 0.75 end
+			end
+		end)
+
+		-- 7. Neutralize Noise and Hijack damage hitboxes (Godmode) without affecting visibility or limbs
+		if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
+			for _, r in pairs(CurrentRooms:GetChildren()) do
+				for _, entity in ipairs(r:GetChildren()) do
+					local eName = entity.Name:lower()
+					if eName:find("noise") or eName:find("hijack") then
+						for _, p in ipairs(entity:GetDescendants()) do
+							if p:IsA("BasePart") and (p.Name == "Hitbox" or p.Name:lower():find("touch") or p.Name:lower():find("damage")) then
+								p.CanTouch = false
+								p.CanQuery = false
+							end
 						end
 					end
 				end
@@ -4014,7 +4041,7 @@ Functions.HandleCharacter = function(NewCharacter)
 				for i = #Globals.TrackedNoiseTVs, 1, -1 do
 					local tv = Globals.TrackedNoiseTVs[i]
 					if tv and tv.Parent then
-						Functions.VoidNoiseTV(tv)
+						Functions.BreakNoiseTV(tv)
 					else
 						table.remove(Globals.TrackedNoiseTVs, i)
 					end
@@ -5059,13 +5086,26 @@ Functions.HandleObject = function(Object)
 				Connections.PadlockConnection = nil
 			end
 		end)
-	elseif Name == "Noise" or Name == "Hijack" or Name:find("Noise") or Name == "TV" or Name == "Television" or Name == "NoiseTV" or Name == "TV_Stand" or Name:find("TV") or Object:GetAttribute("LoadModule") == "StairwellTV" then
+	elseif Name == "TV" or Name == "Television" or Name == "NoiseTV" or Name == "TV_Stand" or Name == "ShoppingCart" or Object:GetAttribute("LoadModule") == "StairwellTV" or Object:GetAttribute("LoadModule") == "ShoppingCart" then
 		if Object:IsA("Model") or (Object:IsA("BasePart") and not Object:IsDescendantOf(Character)) then
 			local target = Object:IsA("Model") and Object or (Object:FindFirstAncestorOfClass("Model") or Object)
-			if not table.find(Globals.TrackedNoiseTVs, target) then
-				table.insert(Globals.TrackedNoiseTVs, target)
-				if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
-					Functions.VoidNoiseTV(target)
+			if target ~= Character and not target:IsDescendantOf(Character) and not target:FindFirstChildOfClass("Humanoid") then
+				if not table.find(Globals.TrackedNoiseTVs, target) then
+					table.insert(Globals.TrackedNoiseTVs, target)
+					if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+						Functions.BreakNoiseTV(target)
+					end
+				end
+			end
+		end
+	elseif Name == "Noise" or Name == "Hijack" or Name == "NoiseModel" then
+		Functions.AddESP({ Object = Object, Text = "Noise", Color = Color3.fromRGB(255, 60, 60) }, true)
+		table.insert(Objects.Entities, Object)
+		if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
+			for _, p in ipairs(Object:GetDescendants()) do
+				if p:IsA("BasePart") and (p.Name == "Hitbox" or p.Name:lower():find("touch") or p.Name:lower():find("damage")) then
+					p.CanTouch = false
+					p.CanQuery = false
 				end
 			end
 		end
@@ -5175,22 +5215,12 @@ task.spawn(function()
 		task.defer(function()
 			local tvVal = entry:FindFirstChild("TV") or entry:WaitForChild("TV", 1)
 			local tv = tvVal and tvVal.Value
-			if tv then
+			if tv and tv:IsA("PVInstance") and tv ~= Character and not tv:IsDescendantOf(Character) then
 				if not table.find(Globals.TrackedNoiseTVs, tv) then
 					table.insert(Globals.TrackedNoiseTVs, tv)
 				end
 				if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
-					Functions.VoidNoiseTV(tv)
-				end
-			end
-			for _, d in ipairs(entry:GetDescendants()) do
-				if d:IsA("ObjectValue") and d.Value and d.Value:IsA("PVInstance") then
-					if not table.find(Globals.TrackedNoiseTVs, d.Value) then
-						table.insert(Globals.TrackedNoiseTVs, d.Value)
-					end
-					if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
-						Functions.VoidNoiseTV(d.Value)
-					end
+					Functions.BreakNoiseTV(tv)
 				end
 			end
 		end)
@@ -5223,14 +5253,28 @@ task.spawn(function()
 
 	CurrentRooms.DescendantAdded:Connect(function(desc)
 		local dName = desc.Name
-		if dName == "Noise" or dName == "Hijack" or dName:find("Noise") or dName == "TV" or dName == "NoiseTV" or dName == "TV_Stand" or dName:find("TV") or desc:GetAttribute("LoadModule") == "StairwellTV" then
+		if dName == "TV" or dName == "Television" or dName == "NoiseTV" or dName == "TV_Stand" or dName == "ShoppingCart" or desc:GetAttribute("LoadModule") == "StairwellTV" or desc:GetAttribute("LoadModule") == "ShoppingCart" then
 			if desc:IsA("Model") or (desc:IsA("BasePart") and not desc:IsDescendantOf(Character)) then
 				local target = desc:IsA("Model") and desc or (desc:FindFirstAncestorOfClass("Model") or desc)
-				if not table.find(Globals.TrackedNoiseTVs, target) then
-					table.insert(Globals.TrackedNoiseTVs, target)
+				if target ~= Character and not target:IsDescendantOf(Character) and not target:FindFirstChildOfClass("Humanoid") then
+					if not table.find(Globals.TrackedNoiseTVs, target) then
+						table.insert(Globals.TrackedNoiseTVs, target)
+					end
+					if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+						Functions.BreakNoiseTV(target)
+					end
 				end
-				if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
-					Functions.VoidNoiseTV(target)
+			end
+		elseif dName == "Noise" or dName == "Hijack" or dName == "NoiseModel" then
+			if desc:IsA("Model") then
+				Functions.AddESP({ Object = desc, Text = "Noise", Color = Color3.fromRGB(255, 60, 60) }, true)
+				if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
+					for _, p in ipairs(desc:GetDescendants()) do
+						if p:IsA("BasePart") and (p.Name == "Hitbox" or p.Name:lower():find("touch") or p.Name:lower():find("damage")) then
+							p.CanTouch = false
+							p.CanQuery = false
+						end
+					end
 				end
 			end
 		elseif dName == "Creak" or dName:find("Creak") or dName == "SpawnCreak" then
