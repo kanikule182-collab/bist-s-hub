@@ -1,16 +1,12 @@
 return function(Window)
     local LatestChangelog = {
-        "<font size='22' color='rgb(50, 255, 100)'><b>ALL FIXEEED!!!!</b></font>",
-        "<font color='rgb(160, 255, 180)'>• Remote GitHub loader 100% repaired</font>",
-        "<font color='rgb(160, 255, 180)'>• Clean UI (removed cross & diamond button)</font>",
-        "<font color='rgb(160, 255, 180)'>• Toggle with [RightShift] or [Insert]</font>",
-        "<font color='rgb(160, 255, 180)'>• Full Real executor optimization</font>",
-        "<font color='rgb(160, 255, 180)'>• Anti-Scribble bypass (No paper damage & screen clean)</font>",
-        "<font color='rgb(160, 255, 180)'>• Safe DOORS lobby initialization</font>",
+        "<font size='22' color='rgb(50, 200, 255)'><b>Open Hub</b></font>",
+        "<font color='rgb(180, 255, 200)'>• Добавлен Pet Simulator 99 (Авто Ранг, Авто Фарм, Сбор Дропа)</font>",
+        "<font color='rgb(180, 255, 200)'>• Фиксы и оптимизация (Doors, ESP, Unload)</font>",
     }
 
     local function CloneReference(Object)
-        local env = (GeminiHub and GeminiHub.Environment) or (getgenv and getgenv()) or {}
+        local env = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub).Environment or (getgenv and getgenv()) or {}
         if env and env.cloneref then
             return env.cloneref(Object)
         elseif cloneref then
@@ -24,11 +20,12 @@ return function(Window)
         __index = function(self, Name)
             return CloneReference(game:GetService(Name))
         end
-    })
+    end)
 
-    local Library = GeminiHub.Interface.Library
-    local SaveManager = GeminiHub.Interface.SaveManager
-    local ThemeManager = GeminiHub.Interface.ThemeManager
+    local Hub = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) or _G.OpenHub or _G.GeminiHub or _G.BistsHub
+    local Library = Hub.Interface.Library
+    local SaveManager = Hub.Interface.SaveManager
+    local ThemeManager = Hub.Interface.ThemeManager
 
     local LocalPlayer = Services.Players.LocalPlayer
     local InfoTab = Window:AddTab("Info", "user")
@@ -45,7 +42,7 @@ return function(Window)
     })
 
     User:AddLabel("User: " .. LocalPlayer.Name, true)
-    User:AddLabel("Total Executions: " .. (GeminiHub.TotalExecutions and GeminiHub.TotalExecutions or "1"), true)
+    User:AddLabel("Total Executions: " .. (Hub.TotalExecutions and Hub.TotalExecutions or "1"), true)
 
     local Changelog = InfoTab:AddRightGroupbox("Changelog")
     for Index, Change in pairs(LatestChangelog) do
@@ -53,8 +50,8 @@ return function(Window)
     end
 
     local Name, Version = "Unknown", "N/A"
-    if GeminiHub.Environment and GeminiHub.Environment.identifyexecutor then
-        Name, Version = GeminiHub.Environment.identifyexecutor()
+    if Hub.Environment and Hub.Environment.identifyexecutor then
+        Name, Version = Hub.Environment.identifyexecutor()
     end
     local Executor = InfoTab:AddRightGroupbox("Executor Info")
     Executor:AddLabel("Name: " .. tostring(Name), true)
