@@ -970,12 +970,19 @@ Functions.NeutralizeNoise = function(noiseModel)
 				p.CanTouch = false
 				p.CanQuery = false
 				p.CanCollide = false
+				p.Transparency = 1
+			elseif p:IsA("Decal") or p:IsA("Texture") or p:IsA("ParticleEmitter") or p:IsA("Highlight") then
+				p.Enabled = false
+			elseif p:IsA("Sound") then
+				p.Volume = 0
+				p:Stop()
 			end
 		end
-		-- Move Noise out of the world so it cannot jumpscare, stare or damage the player
+		-- Instantly vanish Noise into the void and destroy it
 		if noiseModel:IsA("Model") then
-			noiseModel:PivotTo(CFrame.new(0, -3000, 0))
+			noiseModel:PivotTo(CFrame.new(0, -10000, 0))
 		end
+		noiseModel:Destroy()
 	end)
 end
 
@@ -1000,11 +1007,12 @@ Functions.BreakNoiseTV = function(tv, force)
 	if not base or not base:IsA("BasePart") then return false end
 
 	local dist = RootPart and (RootPart.Position - base.Position).Magnitude or 999
-	if dist > 70 and not force then
+	-- Extended range: up to 2500 studs away!
+	if dist > 2500 and not force then
 		return false
 	end
 
-	-- 1. Instantly neutralize any Noise entity anywhere in workspace or Camera!
+	-- 1. Instantly eliminate any Noise entity anywhere in workspace or Camera!
 	for _, container in ipairs({ Services.Workspace.CurrentCamera, Services.Workspace }) do
 		for _, child in ipairs(container:GetChildren()) do
 			local cName = child.Name:lower()
@@ -1024,36 +1032,36 @@ Functions.BreakNoiseTV = function(tv, force)
 	end
 
 	pcall(function()
-		-- 2. Trigger push prompt legitimately from behind the cart
+		-- 2. Trigger push prompt legitimately from behind the cart, even from 1000+ studs away!
 		if promptToFire and promptToFire.Parent then
 			local oldCF = RootPart and RootPart.CFrame
 			local behindPos = base.Position - base.CFrame.LookVector * 2.8 + Vector3.new(0, 0.5, 0)
 
-			if RootPart and dist > 5 then
+			if RootPart and dist > 4 then
 				RootPart.CFrame = CFrame.new(behindPos, base.Position)
-				task.wait(0.08)
+				task.wait(0.06)
 			end
 
 			promptToFire.RequiresLineOfSight = false
-			promptToFire.MaxActivationDistance = 50
+			promptToFire.MaxActivationDistance = 3000
 
 			if fireproximityprompt then
 				fireproximityprompt(promptToFire, 0)
-				fireproximityprompt(promptToFire, 0.3)
+				fireproximityprompt(promptToFire, 0.25)
 			end
 			promptToFire:InputHoldBegin()
-			task.wait(0.3)
+			task.wait(0.25)
 			pcall(function() promptToFire:InputHoldEnd() end)
 
 			if oldCF and RootPart then
-				task.wait(0.05)
+				task.wait(0.04)
 				RootPart.CFrame = oldCF
 			end
 		end
 
-		-- 3. Release cart physics and roll forward down the stairs
+		-- 3. Release cart physics and roll forward down the stairs at heavy speed
 		local forward = base.CFrame.LookVector
-		local rollVel = forward * 55 + Vector3.new(0, -15, 0)
+		local rollVel = forward * 70 + Vector3.new(0, -20, 0)
 		for _, part in ipairs((cartModel or root):GetDescendants()) do
 			if part:IsA("BasePart") then
 				pcall(function()
@@ -1090,7 +1098,7 @@ Functions.BreakNoiseTV = function(tv, force)
 		end
 
 		-- 6. Trigger official StairwellTVDebris client module
-		task.delay(0.15, function()
+		task.delay(0.12, function()
 			pcall(function()
 				local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
 				if floorRep then
@@ -4091,8 +4099,8 @@ Functions.HandleCharacter = function(NewCharacter)
 			end
 		end
 
-		-- Stairwell Noise & Creak lightweight handler (throttled every 1.5s, ZERO frame drops)
-		if tick() - (Globals.LastStairwellCheck or 0) > 1.0 then
+		-- Stairwell Noise & Creak lightweight handler (fast 0.3s check)
+		if tick() - (Globals.LastStairwellCheck or 0) > 0.3 then
 			Globals.LastStairwellCheck = tick()
 
 			-- Continuously disarm and neutralize Noise and Hijack everywhere (Camera, Workspace, CurrentRooms)
