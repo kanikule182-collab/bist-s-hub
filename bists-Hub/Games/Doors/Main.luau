@@ -1,3 +1,7 @@
+local GeminiHub = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) or _G.OpenHub or _G.GeminiHub or _G.BistsHub or GeminiHub
+local OpenHub = GeminiHub
+local BistsHub = GeminiHub
+
 if GeminiHub and GeminiHub.DoorsUnload then
 	pcall(GeminiHub.DoorsUnload)
 	GeminiHub.DoorsUnload = nil
@@ -5404,7 +5408,7 @@ task.spawn(function()
 				end)
 			end
 		end
-	end)
+	end))
 
 	-- Auto clean PaperCut screen effect from Scribble
 	pcall(function()
