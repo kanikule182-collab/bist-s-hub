@@ -1,4 +1,4 @@
--- Gemini Hub: Local Analytics & Session Stats (No external telemetry)
+-- Open Hub: Local Analytics & Session Stats (No external telemetry)
 local function CloneReference(Object)
     if GeminiHub and GeminiHub.Environment and GeminiHub.Environment.cloneref then
         return GeminiHub.Environment.cloneref(Object)
@@ -23,5 +23,5 @@ local SessionData = {
 }
 
 GeminiHub.SessionData = SessionData
-print("[Gemini Hub] Session initialized for " .. SessionData.Account .. " on " .. SessionData.Executor)
+print("[Open Hub] Session initialized for " .. SessionData.Account .. " on " .. SessionData.Executor)
 return SessionData
