@@ -48,20 +48,21 @@ return function(Window)
 		Default = (GeminiHub.UILibrary == "Linoria" and 2 or 1),
 		Callback = function(Value)
 			if GeminiHub.Environment.writefile and GeminiHub.Environment.readfile then
-				if not GeminiHub.Environment.isfile("GeminiHub/UserData.json") then
+				if not GeminiHub.Environment.isfile("OpenHub/UserData.json") and not GeminiHub.Environment.isfile("GeminiHub/UserData.json") then
 					local Data = {
 						TotalExecutions = 0,
 						UILibrary = "Obsidian"
 					}
-					GeminiHub.Environment.writefile("GeminiHub/UserData.json", Services.HttpService:JSONEncode(Data))
+					GeminiHub.Environment.writefile("OpenHub/UserData.json", Services.HttpService:JSONEncode(Data))
 				end
 
-				local UserData = GeminiHub.Environment.readfile("GeminiHub/UserData.json")
+				local userPath = GeminiHub.Environment.isfile("OpenHub/UserData.json") and "OpenHub/UserData.json" or "GeminiHub/UserData.json"
+				local UserData = GeminiHub.Environment.readfile(userPath)
 				local Decoded = Services.HttpService:JSONDecode(UserData)
 				Decoded.UILibrary = Value
 
 				GeminiHub.UILibrary = Value
-				GeminiHub.Environment.writefile("GeminiHub/UserData.json", Services.HttpService:JSONEncode(Decoded))
+				GeminiHub.Environment.writefile("OpenHub/UserData.json", Services.HttpService:JSONEncode(Decoded))
 			end
 		end
 	})
@@ -103,7 +104,7 @@ return function(Window)
 	SaveManager:IgnoreThemeSettings()
 	SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 
-	ThemeManager:SetFolder("GeminiHub")
+	ThemeManager:SetFolder("OpenHub")
 	ThemeManager:ApplyToTab(SettingsTab)
 
 	SaveManager:LoadAutoloadConfig()
