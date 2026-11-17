@@ -106,7 +106,6 @@ local function LoadModule(relPath)
         "https://raw.githubusercontent.com/kanikule182-collab/Bists-Hub/refs/heads/main/",
         "https://raw.githubusercontent.com/kanikule182-collab/Gemini-Hub/refs/heads/main/",
         "https://raw.githubusercontent.com/kanikule182-collab/bists-hub/refs/heads/main/",
-        "https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/",
     }
 
     if getgenv and getgenv().OpenHubBaseUrl then
