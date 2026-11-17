@@ -500,7 +500,7 @@ Globals.DoorsNotify = function(NotifyOptions)
 
 			if Achievement.Frame:FindFirstChild("Details") then
 				if Achievement.Frame.Details:FindFirstChild("Title") then
-					Achievement.Frame.Details.Title.Text = NotifyOptions.Title or "Bist's Hub"
+					Achievement.Frame.Details.Title.Text = NotifyOptions.Title or "Open Hub"
 				end
 				if Achievement.Frame.Details:FindFirstChild("Desc") then
 					Achievement.Frame.Details.Desc.Text = NotifyOptions.Description or ""
@@ -544,7 +544,7 @@ Globals.DoorsNotify = function(NotifyOptions)
 		TitleLabel.Size = UDim2.new(1, -20, 0, 24)
 		TitleLabel.Position = UDim2.new(0, 15, 0, 8)
 		TitleLabel.BackgroundTransparency = 1
-		TitleLabel.Text = (NotifyOptions.Style or "WARNING") .. " - " .. (NotifyOptions.Title or "Bist's Hub")
+		TitleLabel.Text = (NotifyOptions.Style or "WARNING") .. " - " .. (NotifyOptions.Title or "Open Hub")
 		TitleLabel.TextColor3 = NotifyOptions.Color or Color3.fromRGB(255, 45, 45)
 		TitleLabel.Font = Enum.Font.GothamBold
 		TitleLabel.TextSize = 15
@@ -629,7 +629,7 @@ Functions.Notify = function(Settings)
 			end
 		end
 		Globals.DoorsNotify({
-			Title = "Bist's Hub",
+			Title = "Open Hub",
 			Description = Settings.Title or "WARNING",
 			Reason = Settings.Body or (IsEntity and (EntityName .. " has spawned!") or ""),
 			Style = IsEntity and "WARNING" or (Settings.Style or "ACHIEVEMENT"),
@@ -637,7 +637,7 @@ Functions.Notify = function(Settings)
 			Image = Settings.Image or "rbxassetid://10469938989",
 			Time = Settings.Time or 5
 		})
-	elseif style == "Bist" or style == "Gemini" or style == "Abysall" then
+	elseif style == "OpenHub" or style == "Open" or style == "Bist" or style == "Gemini" or style == "Abysall" then
 		local Sound = Instance.new("Sound", HiddenContainer)
 		Sound.SoundId = "rbxassetid://10469938989" -- DOORS Achievement sound
 		Sound.Volume = (Toggles.NotifyPlaySound and Toggles.NotifyPlaySound.Value and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
@@ -653,13 +653,13 @@ Functions.Notify = function(Settings)
 
 		if Settings.Image then
 			Globals.STX:Notify(
-				{Title = "Bist's Hub", Description = Settings.Title .. "\n" .. Settings.Body},
+				{Title = "Open Hub", Description = Settings.Title .. "\n" .. Settings.Body},
 				{OutlineColor = Library.Scheme.AccentColor,Time = Settings.Time or 5, Type = "image"},
 				{Image = Settings.Image, ImageColor = Color3.fromRGB(255, 255, 255)}
 			)
 		else
 			Globals.STX:Notify(
-				{Title = "Bist's Hub", Description = Settings.Title .. "\n" .. Settings.Body},
+				{Title = "Open Hub", Description = Settings.Title .. "\n" .. Settings.Body},
 				{OutlineColor = Library.Scheme.AccentColor,Time = Settings.Time or 5, Type = "default"}
 			)
 		end
@@ -965,6 +965,9 @@ Globals.TrackedCreaks = {}
 Functions.NeutralizeNoise = function(noiseModel)
 	if not noiseModel or not noiseModel.Parent then return end
 	pcall(function()
+		if Main_Game and Main_Game.noiseVisuals and Main_Game.noiseVisuals.setVisible then
+			pcall(function() Main_Game.noiseVisuals.setVisible(LocalPlayer.UserId, false) end)
+		end
 		for _, p in ipairs(noiseModel:GetDescendants()) do
 			if p:IsA("BasePart") then
 				p.CanTouch = false
@@ -1006,13 +1009,10 @@ Functions.BreakNoiseTV = function(tv, force)
 
 	if not base or not base:IsA("BasePart") then return false end
 
-	local dist = RootPart and (RootPart.Position - base.Position).Magnitude or 999
-	-- Extended range: up to 2500 studs away!
-	if dist > 2500 and not force then
-		return false
-	end
-
 	-- 1. Instantly eliminate any Noise entity anywhere in workspace or Camera!
+	if Main_Game and Main_Game.noiseVisuals and Main_Game.noiseVisuals.setVisible then
+		pcall(function() Main_Game.noiseVisuals.setVisible(LocalPlayer.UserId, false) end)
+	end
 	for _, container in ipairs({ Services.Workspace.CurrentCamera, Services.Workspace }) do
 		for _, child in ipairs(container:GetChildren()) do
 			local cName = child.Name:lower()
@@ -1032,51 +1032,45 @@ Functions.BreakNoiseTV = function(tv, force)
 	end
 
 	pcall(function()
-		-- 2. Trigger push prompt legitimately from behind the cart, even from 1000+ studs away!
+		-- 2. Trigger push prompt legitimately from any distance (ZERO player movement!)
 		if promptToFire and promptToFire.Parent then
-			local oldCF = RootPart and RootPart.CFrame
-			local behindPos = base.Position - base.CFrame.LookVector * 2.8 + Vector3.new(0, 0.5, 0)
+			pcall(function()
+				promptToFire.RequiresLineOfSight = false
+				promptToFire.MaxActivationDistance = 999999
+				promptToFire.HoldDuration = 0
 
-			if RootPart and dist > 4 then
-				RootPart.CFrame = CFrame.new(behindPos, base.Position)
-				task.wait(0.06)
-			end
-
-			promptToFire.RequiresLineOfSight = false
-			promptToFire.MaxActivationDistance = 3000
-
-			if fireproximityprompt then
-				fireproximityprompt(promptToFire, 0)
-				fireproximityprompt(promptToFire, 0.25)
-			end
-			promptToFire:InputHoldBegin()
-			task.wait(0.25)
-			pcall(function() promptToFire:InputHoldEnd() end)
-
-			if oldCF and RootPart then
-				task.wait(0.04)
-				RootPart.CFrame = oldCF
-			end
+				if fireproximityprompt then
+					fireproximityprompt(promptToFire, 0)
+					fireproximityprompt(promptToFire, 1)
+				end
+				promptToFire:InputHoldBegin()
+				task.defer(function()
+					pcall(function() promptToFire:InputHoldEnd() end)
+				end)
+			end)
 		end
 
 		-- 3. Release cart physics and roll forward down the stairs at heavy speed
 		local forward = base.CFrame.LookVector
-		local rollVel = forward * 70 + Vector3.new(0, -20, 0)
+		local rollVel = forward * 90 + Vector3.new(0, -35, 0)
 		for _, part in ipairs((cartModel or root):GetDescendants()) do
 			if part:IsA("BasePart") then
 				pcall(function()
 					part.Anchored = false
 					part.AssemblyLinearVelocity = rollVel
-					part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
+					part.AssemblyAngularVelocity = Vector3.new(12, 0, 6)
 				end)
 			end
 		end
 
 		-- 4. Fire CartReleased / CartAttached bindables
-		local rel = (cartModel or root):FindFirstChild("CartReleased", true)
-		if rel and rel:IsA("BindableEvent") then pcall(function() rel:Fire() end) end
-		local att = (cartModel or root):FindFirstChild("CartAttached", true)
-		if att and att:IsA("BindableEvent") then pcall(function() att:Fire() end) end
+		for _, bindName in ipairs({ "CartReleased", "CartAttached" }) do
+			for _, b in ipairs((cartModel or root):GetDescendants()) do
+				if b:IsA("BindableEvent") and b.Name == bindName then
+					pcall(function() b:Fire() end)
+				end
+			end
+		end
 
 		-- 5. Trigger stair/floor collision impact
 		local collider = (cartModel or root):FindFirstChild("Collider", true) or base
@@ -1098,7 +1092,7 @@ Functions.BreakNoiseTV = function(tv, force)
 		end
 
 		-- 6. Trigger official StairwellTVDebris client module
-		task.delay(0.12, function()
+		task.delay(0.08, function()
 			pcall(function()
 				local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
 				if floorRep then
@@ -2277,7 +2271,7 @@ end)
 Groupboxes.Visuals_EntitySettings:AddToggle("EntityChatToggle", { Text = "Notify Chat", Default = false, Tooltip = "Sends a message in the chat when an entity spawns." })
 Groupboxes.Visuals_EntitySettings:AddInput("EntityChatMessage", { Text = "Message", Default = "spawned!", Numeric = false, Placeholder = "Message" })
 Groupboxes.Visuals_EntitySettings:AddDivider()
-Groupboxes.Visuals_EntitySettings:AddDropdown("NotifyStyle", { Text = "Notify Style", Values = { "Doors", "Gemini", "STX", "Library" }, Default = 1 })
+Groupboxes.Visuals_EntitySettings:AddDropdown("NotifyStyle", { Text = "Notify Style", Values = { "Doors", "OpenHub", "STX", "Library" }, Default = 1 })
 Groupboxes.Visuals_EntitySettings:AddSlider("NotifySoundVolume", { Text = "Sound Volume", Min = 0, Max = 10, Default = 3, Rounding = 1 })
 Groupboxes.Visuals_EntitySettings:AddToggle("NotifyPlaySound", { Text = "Play Sound", Default = true, Tooltip = "Makes notifications play an alert sound." })
 Groupboxes.Visuals_EntitySettings:AddToggle("NotifyKeepNotifications", { Text = "Keep Notifications", Default = false, Tooltip = "Certain notifications will stay on screen until they are no longer needed." })
@@ -3453,7 +3447,7 @@ local function LoadPreset(presetName)
 		SaveManager:SetLibrary(Library)
 		SaveManager:IgnoreThemeSettings()
 		SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-		SaveManager:SetFolder("GeminiHub/" .. (GeminiHub.SavePath or "Doors/Game"))
+		SaveManager:SetFolder("OpenHub/" .. (GeminiHub.SavePath or "Doors/Game"))
 		return SaveManager:Load(presetName)
 	end)
 
@@ -3529,7 +3523,7 @@ Groupboxes.Presets_Ready:AddButton({
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-SaveManager:SetFolder("GeminiHub/" .. (GeminiHub.SavePath or "Doors/Game"))
+SaveManager:SetFolder("OpenHub/" .. (GeminiHub.SavePath or "Doors/Game"))
 SaveManager:BuildConfigSection(Tabs.Presets)
 
 Groupboxes.Presets_Tips = Tabs.Presets:AddRightGroupbox("Preset Quick Tips")
@@ -4166,7 +4160,7 @@ Functions.HandleCharacter = function(NewCharacter)
 		end
 
 		if Globals.SelfKilled and Globals.MainUI:FindFirstChild("Statistics") then
-			Globals.MainUI.Statistics.Death.Text = "Died to Bist's Hub"
+			Globals.MainUI.Statistics.Death.Text = "Died to Open Hub"
 		end
 
 		local MainFrame = Globals.MainUI:FindFirstChild("MainFrame")
@@ -5337,21 +5331,35 @@ task.spawn(function()
 		end
 	end))
 
-	table.insert(Connections, CurrentRooms.DescendantAdded:Connect(function(desc)
+		local function checkTVTarget(desc)
 		local dName = desc.Name
-		if dName == "TV" or dName == "Television" or dName == "NoiseTV" or dName == "TV_Stand" or dName == "ShoppingCart" or desc:GetAttribute("LoadModule") == "StairwellTV" or desc:GetAttribute("LoadModule") == "ShoppingCart" then
-			if desc:IsA("Model") or (desc:IsA("BasePart") and not desc:IsDescendantOf(Character)) then
-				local target = desc:IsA("Model") and desc or (desc:FindFirstAncestorOfClass("Model") or desc)
-				if target ~= Character and not target:IsDescendantOf(Character) and not target:FindFirstChildOfClass("Humanoid") then
-					if not table.find(Globals.TrackedNoiseTVs, target) then
-						table.insert(Globals.TrackedNoiseTVs, target)
-					end
-					if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
-						Functions.BreakNoiseTV(target)
-					end
+		if dName == "TV" or dName == "Television" or dName == "NoiseTV" or dName == "TV_Stand" or dName == "ShoppingCart" or desc:GetAttribute("LoadModule") == "StairwellTV" or desc:GetAttribute("LoadModule") == "ShoppingCart" or desc:FindFirstChild("TVMain") or (desc:IsA("ProximityPrompt") and (desc.Name == "CartPrompt" or desc.Name == "CartNudgePrompt")) then
+			local target = desc:IsA("Model") and desc or (desc:FindFirstAncestorOfClass("Model") or desc)
+			if target and target ~= Character and not target:IsDescendantOf(Character) and not target:FindFirstChildOfClass("Humanoid") then
+				if not table.find(Globals.TrackedNoiseTVs, target) then
+					table.insert(Globals.TrackedNoiseTVs, target)
+				end
+				if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+					Functions.BreakNoiseTV(target, true)
 				end
 			end
-		elseif dName == "Noise" or dName == "Hijack" or dName == "NoiseModel" then
+		end
+	end
+
+	table.insert(Connections, CurrentRooms.ChildAdded:Connect(function(room)
+		task.defer(function()
+			if room:IsA("Model") then
+				for _, desc in ipairs(room:GetDescendants()) do
+					checkTVTarget(desc)
+				end
+			end
+		end)
+	end))
+
+	table.insert(Connections, CurrentRooms.DescendantAdded:Connect(function(desc)
+		checkTVTarget(desc)
+		local dName = desc.Name
+		if dName == "Noise" or dName == "Hijack" or dName == "NoiseModel" then
 			if desc:IsA("Model") then
 				Functions.AddESP({ Object = desc, Text = "Noise", Color = Color3.fromRGB(255, 60, 60) }, true)
 				if (Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
