@@ -1,3 +1,7 @@
+local GeminiHub = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) or _G.OpenHub or _G.GeminiHub or _G.BistsHub or GeminiHub
+local OpenHub = GeminiHub
+local BistsHub = GeminiHub
+
 local LoadStart = tick()
 GeminiHub.SavePath = "Doors/Lobby"
 
@@ -42,8 +46,8 @@ end
 task.wait(1)
 
 local Window = Library:CreateWindow({
-    Title = "Bist's Hub",
-    Footer = "Bist's Hub • DOORS Edition",
+    Title = "Open Hub",
+    Footer = "Open Hub • DOORS Edition",
     NotifySide = "Right",
     ShowCustomCursor = false,
     AutoShow = true,
