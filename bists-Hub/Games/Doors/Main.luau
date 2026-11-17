@@ -5501,7 +5501,7 @@ task.spawn(function()
 				Functions.AddESP({ Object = desc, Text = "Coffee Machine", Color = Color3.fromRGB(180, 120, 70) }, true)
 			end
 		end
-	end)
+	end))
 
 	-- Initial sweep of loaded rooms for Archives items
 	task.defer(function()
