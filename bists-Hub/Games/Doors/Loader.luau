@@ -1,5 +1,6 @@
+local Hub = (getgenv and (getgenv().OpenHub or getgenv().GeminiHub or getgenv().BistsHub)) or _G.OpenHub or _G.GeminiHub or _G.BistsHub or GeminiHub
 if game.PlaceId ~= 6516141723 then
-    GeminiHub.LoadModule("Games/Doors/Main.luau")
+    Hub.LoadModule("Games/Doors/Main.luau")
 else
-    GeminiHub.LoadModule("Games/Doors/Lobby.luau")
+    Hub.LoadModule("Games/Doors/Lobby.luau")
 end
