@@ -962,16 +962,34 @@ end
 Globals.TrackedNoiseTVs = {}
 Globals.TrackedCreaks = {}
 
+Functions.NeutralizeNoise = function(noiseModel)
+	if not noiseModel or not noiseModel.Parent then return end
+	pcall(function()
+		for _, p in ipairs(noiseModel:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.CanTouch = false
+				p.CanQuery = false
+				p.CanCollide = false
+			end
+		end
+		-- Move Noise out of the world so it cannot jumpscare, stare or damage the player
+		if noiseModel:IsA("Model") then
+			noiseModel:PivotTo(CFrame.new(0, -3000, 0))
+		end
+	end)
+end
+
 Functions.BreakNoiseTV = function(tv, force)
 	if not tv or not tv.Parent then return false end
 	local root = tv:IsA("Model") and tv or (tv:FindFirstAncestorOfClass("Model") or tv)
 	if not root or not root.Parent then return false end
 	if root == Character or root:IsDescendantOf(Character) or root:FindFirstChildOfClass("Humanoid") then return false end
 
-	-- Ensure this is NOT the Noise monster itself! Noise monster must never be flinged or broken like a TV!
+	-- Ensure this is NOT the Noise monster itself!
 	local rName = root.Name:lower()
 	local hasTVParts = root:FindFirstChild("TVMain", true) or root:FindFirstChild("TVScreen", true) or root:FindFirstChild("CartNudgePrompt", true) or root:FindFirstChild("CartPrompt", true) or root:FindFirstChild("CartReleased", true) or root.Name == "ShoppingCart"
 	if (rName:find("noise") or rName:find("hijack")) and not hasTVParts then
+		Functions.NeutralizeNoise(root)
 		return false
 	end
 
@@ -982,72 +1000,77 @@ Functions.BreakNoiseTV = function(tv, force)
 	if not base or not base:IsA("BasePart") then return false end
 
 	local dist = RootPart and (RootPart.Position - base.Position).Magnitude or 999
-
-	-- If the player is way too far (> 60 studs) and force is not set, wait until player is in the stairwell
-	if dist > 60 and not force then
+	if dist > 70 and not force then
 		return false
 	end
 
-	if root:GetAttribute("GeminiTVBroken") then return true end
+	-- 1. Instantly neutralize any Noise entity anywhere in workspace or Camera!
+	for _, container in ipairs({ Services.Workspace.CurrentCamera, Services.Workspace }) do
+		for _, child in ipairs(container:GetChildren()) do
+			local cName = child.Name:lower()
+			if cName:find("noise") or cName:find("hijack") then
+				Functions.NeutralizeNoise(child)
+			end
+		end
+	end
+
+	-- Find active CartPrompt or CartNudgePrompt
+	local promptToFire = nil
+	for _, p in ipairs((cartModel or root):GetDescendants()) do
+		if p:IsA("ProximityPrompt") and p.Enabled and (p.Name == "CartPrompt" or p.Name == "CartNudgePrompt" or p.ActionText:lower():find("push") or p.ActionText:lower():find("kick")) then
+			promptToFire = p
+			break
+		end
+	end
 
 	pcall(function()
-		-- Roblox server checks distance (<= 7 studs) and requires player to be behind cart in the 'Push' sector.
-		-- Position player directly behind the cart facing forward so server accepts and registers the push!
-		local oldCF = nil
-		if RootPart and dist > 6 then
-			oldCF = RootPart.CFrame
-			local behindPos = base.Position - base.CFrame.LookVector * 2.5 + Vector3.new(0, 0.5, 0)
-			pcall(function() RootPart.CFrame = CFrame.new(behindPos, base.Position) end)
-			task.wait(0.06)
+		-- 2. Trigger push prompt legitimately from behind the cart
+		if promptToFire and promptToFire.Parent then
+			local oldCF = RootPart and RootPart.CFrame
+			local behindPos = base.Position - base.CFrame.LookVector * 2.8 + Vector3.new(0, 0.5, 0)
+
+			if RootPart and dist > 5 then
+				RootPart.CFrame = CFrame.new(behindPos, base.Position)
+				task.wait(0.08)
+			end
+
+			promptToFire.RequiresLineOfSight = false
+			promptToFire.MaxActivationDistance = 50
+
+			if fireproximityprompt then
+				fireproximityprompt(promptToFire, 0)
+				fireproximityprompt(promptToFire, 0.3)
+			end
+			promptToFire:InputHoldBegin()
+			task.wait(0.3)
+			pcall(function() promptToFire:InputHoldEnd() end)
+
+			if oldCF and RootPart then
+				task.wait(0.05)
+				RootPart.CFrame = oldCF
+			end
 		end
 
-		-- 1. Trigger CartPrompt / CartNudgePrompt with full hold duration so server registers legitimate push
-		for _, prompt in ipairs((cartModel or root):GetDescendants()) do
-			if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+		-- 3. Release cart physics and roll forward down the stairs
+		local forward = base.CFrame.LookVector
+		local rollVel = forward * 55 + Vector3.new(0, -15, 0)
+		for _, part in ipairs((cartModel or root):GetDescendants()) do
+			if part:IsA("BasePart") then
 				pcall(function()
-					prompt.RequiresLineOfSight = false
-					prompt.MaxActivationDistance = 50
-					local hold = prompt.HoldDuration or 0.2
-					if fireproximityprompt then
-						fireproximityprompt(prompt, 0)
-						fireproximityprompt(prompt, hold)
-					end
-					prompt:InputHoldBegin()
-					task.delay(hold + 0.05, function()
-						pcall(function() prompt:InputHoldEnd() end)
-					end)
+					part.Anchored = false
+					part.AssemblyLinearVelocity = rollVel
+					part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
 				end)
 			end
 		end
 
-		-- Restore position if spoofed
-		if oldCF and RootPart then
-			task.delay(0.18, function()
-				pcall(function() RootPart.CFrame = oldCF end)
-			end)
-		end
-
-		-- 2. Fire CartReleased / CartAttached bindables if present
+		-- 4. Fire CartReleased / CartAttached bindables
 		local rel = (cartModel or root):FindFirstChild("CartReleased", true)
-		if rel and rel:IsA("BindableEvent") then
-			pcall(function() rel:Fire() end)
-		end
+		if rel and rel:IsA("BindableEvent") then pcall(function() rel:Fire() end) end
 		local att = (cartModel or root):FindFirstChild("CartAttached", true)
-		if att and att:IsA("BindableEvent") then
-			pcall(function() att:Fire() end)
-		end
+		if att and att:IsA("BindableEvent") then pcall(function() att:Fire() end) end
 
-		-- 3. Simulate natural physical roll down the ramp/stairs (forward rolling down stairs)
-		local forward = base.CFrame.LookVector
-		local rollVel = forward * 45 + Vector3.new(0, -12, 0)
-		for _, part in ipairs((cartModel or root):GetDescendants()) do
-			if part:IsA("BasePart") and part.CanCollide then
-				part.AssemblyLinearVelocity = rollVel
-				part.AssemblyAngularVelocity = Vector3.new(8, 0, 4)
-			end
-		end
-
-		-- 4. Simulate impact collision with floor/stairs so server crash detection triggers
+		-- 5. Trigger stair/floor collision impact
 		local collider = (cartModel or root):FindFirstChild("Collider", true) or base
 		local room = root:FindFirstAncestorOfClass("Model") or root.Parent
 		if collider and collider:IsA("BasePart") and room then
@@ -1066,10 +1089,7 @@ Functions.BreakNoiseTV = function(tv, force)
 			end
 		end
 
-		-- Mark broken only after prompt and push have been dispatched
-		root:SetAttribute("GeminiTVBroken", true)
-
-		-- 5. Execute game's official StairwellTVDebris client module after push delay
+		-- 6. Trigger official StairwellTVDebris client module
 		task.delay(0.15, function()
 			pcall(function()
 				local floorRep = Services.ReplicatedStorage:FindFirstChild("FloorReplicated")
@@ -1083,56 +1103,9 @@ Functions.BreakNoiseTV = function(tv, force)
 					end
 				end
 			end)
-
-			-- Direct visual screen shatter fallback
-			pcall(function()
-				local targetTV = tvModel or root
-				local tvScreen = targetTV:FindFirstChild("TVScreen", true)
-				local brokenScreen = targetTV:FindFirstChild("BrokenScreen", true)
-				local staticSnd = targetTV:FindFirstChild("Static", true)
-				local shatterSnd = targetTV:FindFirstChild("Shatter", true)
-
-				if staticSnd and staticSnd:IsA("Sound") then staticSnd:Stop() end
-				if shatterSnd and shatterSnd:IsA("Sound") then shatterSnd:Play() end
-
-				if tvScreen and tvScreen:IsA("BasePart") then
-					tvScreen.Material = Enum.Material.Plastic
-					tvScreen.Transparency = 1
-					local tex = tvScreen:FindFirstChild("StaticTexture", true)
-					if tex then tex.Transparency = 1 end
-					local hl = tvScreen:FindFirstChild("Highlight", true)
-					if hl then hl.Enabled = false end
-					for _, light in ipairs(tvScreen:GetDescendants()) do
-						if light:IsA("Light") then light.Enabled = false end
-					end
-				end
-
-				if brokenScreen and brokenScreen:IsA("BasePart") then
-					brokenScreen.Material = Enum.Material.Glass
-					brokenScreen.Transparency = 0
-					local d = brokenScreen:FindFirstChild("Decal", true)
-					if d then d.Transparency = 0.75 end
-				end
-			end)
 		end)
-
-		-- 6. Neutralize Noise and Hijack damage hitboxes (Godmode) without affecting visibility or limbs
-		if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
-			for _, r in pairs(CurrentRooms:GetChildren()) do
-				for _, entity in ipairs(r:GetChildren()) do
-					local eName = entity.Name:lower()
-					if eName:find("noise") or eName:find("hijack") then
-						for _, p in ipairs(entity:GetDescendants()) do
-							if p:IsA("BasePart") and (p.Name == "Hitbox" or p.Name:lower():find("touch") or p.Name:lower():find("damage")) then
-								p.CanTouch = false
-								p.CanQuery = false
-							end
-						end
-					end
-				end
-			end
-		end
 	end)
+
 	return true
 end
 
@@ -4119,8 +4092,21 @@ Functions.HandleCharacter = function(NewCharacter)
 		end
 
 		-- Stairwell Noise & Creak lightweight handler (throttled every 1.5s, ZERO frame drops)
-		if tick() - (Globals.LastStairwellCheck or 0) > 1.5 then
+		if tick() - (Globals.LastStairwellCheck or 0) > 1.0 then
 			Globals.LastStairwellCheck = tick()
+
+			-- Continuously disarm and neutralize Noise and Hijack everywhere (Camera, Workspace, CurrentRooms)
+			if (Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+				for _, container in ipairs({ Services.Workspace.CurrentCamera, Services.Workspace }) do
+					for _, child in ipairs(container:GetChildren()) do
+						local cName = child.Name:lower()
+						if cName:find("noise") or cName:find("hijack") then
+							Functions.NeutralizeNoise(child)
+						end
+					end
+				end
+			end
+
 			if (Toggles.AutoVoidNoiseTV and Toggles.AutoVoidNoiseTV.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
 				for i = #Globals.TrackedNoiseTVs, 1, -1 do
 					local tv = Globals.TrackedNoiseTVs[i]
@@ -5360,13 +5346,8 @@ task.spawn(function()
 		elseif dName == "Noise" or dName == "Hijack" or dName == "NoiseModel" then
 			if desc:IsA("Model") then
 				Functions.AddESP({ Object = desc, Text = "Noise", Color = Color3.fromRGB(255, 60, 60) }, true)
-				if Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value then
-					for _, p in ipairs(desc:GetDescendants()) do
-						if p:IsA("BasePart") and (p.Name == "Hitbox" or p.Name:lower():find("touch") or p.Name:lower():find("damage")) then
-							p.CanTouch = false
-							p.CanQuery = false
-						end
-					end
+				if (Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+					Functions.NeutralizeNoise(desc)
 				end
 			end
 		elseif dName == "Creak" or dName:find("Creak") or dName == "SpawnCreak" then
@@ -5456,6 +5437,17 @@ task.spawn(function()
 			Functions.AddESP({ Object = drone, Text = "Drone", Color = Color3.fromRGB(0, 220, 255) }, true)
 		end
 	end
+
+	-- Noise entity camera listener
+	table.insert(Connections, Services.Workspace.CurrentCamera.ChildAdded:Connect(function(child)
+		local cName = child.Name:lower()
+		if cName:find("noise") or cName:find("hijack") then
+			Functions.AddESP({ Object = child, Text = "Noise", Color = Color3.fromRGB(255, 60, 60) }, true)
+			if (Toggles.NoiseGodmode and Toggles.NoiseGodmode.Value) or (Toggles.AutoBreakNoiseTV and Toggles.AutoBreakNoiseTV.Value) then
+				Functions.NeutralizeNoise(child)
+			end
+		end
+	end))
 
 	-- Sweep existing Drones in workspace
 	for _, child in ipairs(Services.Workspace:GetChildren()) do
